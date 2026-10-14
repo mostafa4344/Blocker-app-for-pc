@@ -1,0 +1,12 @@
+-- Optional local-dev seed. Do NOT run in production.
+-- Parents are real Supabase Auth users, so create a test user via the Auth UI /
+-- CLI first, then use its UUID below. This seed only illustrates shape.
+--
+-- Example (replace the UUID with a real auth.users id):
+--
+-- select create_family('Test Family');            -- run as the logged-in user in the SQL editor
+-- insert into children(family_id, name, birth_year)
+--   values ((select family_id from family_members where user_id = auth.uid() limit 1),
+--           'Alex', 2014);
+--
+-- Policies/devices are better created through the app so tokens/JWTs are real.

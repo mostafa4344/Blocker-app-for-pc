@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FamilyGuard</string>
+
+    <!-- Persistent status notification (COMPLIANCE C1) -->
+    <string name="status_channel_name">Protection status</string>
+    <string name="status_channel_desc">Shows that family protection is active on this device.</string>
+    <string name="status_notif_title">FamilyGuard is active</string>
+    <string name="status_notif_text">Your parent or guardian set up family protection on this phone and can see activity and app usage. Tap to see exactly what they can see.</string>
+
+    <!-- Disclosure / consent (COMPLIANCE C4) -->
+    <string name="disclosure_title">Before you start</string>
+    <string name="disclosure_body">A parent or guardian is setting up FamilyGuard on this phone to help manage screen time and keep browsing safer.\n\nWhile it is active, your guardian can see:\n• Which apps you use and for how long\n• Whether the phone is on or off and its battery level\n• Your location, only if your guardian turns location sharing on\n\nYour guardian can also:\n• Set daily screen-time limits and bedtime\n• Allow or block specific apps\n• Turn on safer web browsing\n• Lock the phone for a while (you can always make emergency calls)\n\nFamilyGuard does NOT read your messages, listen to your calls, or record audio or video.\n\nThis app will always be visible and will always show a notification while it is active.</string>
+    <string name="disclosure_agree">I understand</string>
+
+    <!-- Device admin disable warning (honest, calm) -->
+    <string name="admin_disable_warning">Turning this off removes family protection and your guardian will be notified that the phone stopped checking in.</string>
+
+    <!-- Transparency screen entry -->
+    <string name="transparency_title">What my guardian can see</string>
+</resources>

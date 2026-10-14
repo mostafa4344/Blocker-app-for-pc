@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device Admin policy declaration. Kept minimal and purpose-specific.
+  Real control (app allow/block, limits) is best done via Device Owner DPC APIs
+  when provisioned; this admin declaration provides the removal-resistance hook
+  and basic lock capability for the Device Admin fallback path.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+        <watch-login />
+    </uses-policies>
+</device-admin>
