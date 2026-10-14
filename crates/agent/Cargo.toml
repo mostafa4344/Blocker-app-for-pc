@@ -1,0 +1,6 @@
+[package]
+name = "focusfort-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
