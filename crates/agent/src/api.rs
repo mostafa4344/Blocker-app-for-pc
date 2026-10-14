@@ -25,6 +25,10 @@ const MAX_BODY: u64 = 1024 * 1024;
 
 static INDEX_HTML: &str = include_str!("../../../ui/index.html");
 static APP_JS: &str = include_str!("../../../ui/app.js");
+static CORE_JS: &str = include_str!("../../../ui/core.js");
+static HOME_JS: &str = include_str!("../../../ui/home.js");
+static EDITORS_JS: &str = include_str!("../../../ui/editors.js");
+static PROTECTION_JS: &str = include_str!("../../../ui/protection.js");
 static I18N_JS: &str = include_str!("../../../ui/i18n.js");
 static STYLE_CSS: &str = include_str!("../../../ui/style.css");
 static ICON_SVG: &str = include_str!("../../../ui/icon.svg");
@@ -102,6 +106,10 @@ fn handle(app: &App, port: u16, mut req: Request) {
         let static_file = match path.as_str() {
             "/" | "/index.html" => Some(("text/html; charset=utf-8", INDEX_HTML)),
             "/app.js" => Some(("text/javascript; charset=utf-8", APP_JS)),
+            "/core.js" => Some(("text/javascript; charset=utf-8", CORE_JS)),
+            "/home.js" => Some(("text/javascript; charset=utf-8", HOME_JS)),
+            "/editors.js" => Some(("text/javascript; charset=utf-8", EDITORS_JS)),
+            "/protection.js" => Some(("text/javascript; charset=utf-8", PROTECTION_JS)),
             "/i18n.js" => Some(("text/javascript; charset=utf-8", I18N_JS)),
             "/style.css" => Some(("text/css; charset=utf-8", STYLE_CSS)),
             "/icon.svg" | "/favicon.ico" => Some(("image/svg+xml", ICON_SVG)),
