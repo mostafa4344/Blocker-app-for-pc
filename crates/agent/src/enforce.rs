@@ -16,7 +16,7 @@ use crate::processes::{browser_family, Watcher};
 pub const TICK: Duration = Duration::from_secs(2);
 /// A browser gets this long to connect its extension before it is closed
 /// (only when "require browser extension" is on and a block is active).
-const EXTENSION_GRACE_SECS: u64 = 45;
+const EXTENSION_GRACE_SECS: u64 = 90;
 const SAVE_EVERY: Duration = Duration::from_secs(20);
 
 pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
