@@ -1,0 +1,11 @@
+:root { --bg: #f6f7fb; --card: #fff; --text: #161a2b; --muted: #5d6479; --primary: #4f46e5; color-scheme: light dark; font-family: "Hind Siliguri", "Noto Sans Bengali", "Segoe UI", system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0f1220; --card: #171b2e; --text: #e8eaf4; --muted: #9aa1b8; --primary: #818cf8; } }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); padding: 16px; }
+main { background: var(--card); border-radius: 20px; padding: 40px 32px; max-width: 560px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.08); }
+h1 { margin: 16px 0 4px; font-size: 1.7rem; }
+.muted { color: var(--muted); word-break: break-all; }
+blockquote { margin: 20px 0; padding: 14px 18px; border-left: 4px solid var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); text-align: left; border-radius: 8px; }
+.quote { font-style: italic; color: var(--muted); margin-top: 20px; }
+.actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+button, a { font: inherit; padding: 10px 18px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--muted) 40%, transparent); background: transparent; color: var(--text); cursor: pointer; text-decoration: none; }
+button { background: var(--primary); color: #fff; border-color: var(--primary); }

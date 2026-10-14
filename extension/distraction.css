@@ -1,0 +1,27 @@
+/* Partial blocking. Classes on <html> are set by distraction.js from the user's settings.
+   Site markup changes often; selectors are best effort and kept in one place. */
+html.ff-youtube_shorts ytd-reel-shelf-renderer,
+html.ff-youtube_shorts ytd-rich-shelf-renderer[is-shorts],
+html.ff-youtube_shorts ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),
+html.ff-youtube_shorts ytd-guide-entry-renderer:has(a[title="Shorts"]),
+html.ff-youtube_shorts ytd-mini-guide-entry-renderer[aria-label="Shorts"],
+html.ff-youtube_shorts ytd-video-renderer:has(a[href^="/shorts/"]),
+html.ff-youtube_shorts ytd-grid-video-renderer:has(a[href^="/shorts/"]),
+html.ff-youtube_shorts grid-shelf-view-model,
+html.ff-youtube_shorts yt-tab-shape[tab-title="Shorts"],
+html.ff-youtube_recommendations.ff-path-root ytd-browse[page-subtype="home"] #primary,
+html.ff-youtube_recommendations #related,
+html.ff-youtube_recommendations ytd-watch-next-secondary-results-renderer,
+html.ff-youtube_recommendations .ytp-endscreen-content,
+html.ff-youtube_recommendations .ytp-ce-element,
+html.ff-youtube_comments ytd-comments#comments,
+html.ff-facebook_feed.ff-path-root [role="main"] [role="feed"],
+html.ff-facebook_feed.ff-path-root [aria-label="Stories"],
+html.ff-facebook_reels a[href*="/reel/"],
+html.ff-facebook_reels a[href*="/reels/"],
+html.ff-instagram_reels a[href="/reels/"],
+html.ff-instagram_reels a[href="/explore/"],
+html.ff-x_feed.ff-path-home [data-testid="primaryColumn"] section[role="region"],
+html.ff-linkedin_feed.ff-path-feed main .scaffold-finite-scroll {
+  display: none !important;
+}

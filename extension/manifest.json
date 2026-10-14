@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "FocusFort",
+  "version": "0.1.0",
+  "description": "Companion extension for the FocusFort desktop blocker: block pages, path/keyword/allowlist blocking and hiding Shorts, Reels and feeds.",
+  "icons": {
+    "128": "icons/icon.png",
+    "48": "icons/icon48.png"
+  },
+  "permissions": [
+    "declarativeNetRequest",
+    "storage",
+    "tabs",
+    "alarms",
+    "idle"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "rules.js",
+      "background.js"
+    ]
+  },
+  "incognito": "spanning",
+  "action": {
+    "default_title": "FocusFort",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.facebook.com/*",
+        "*://*.instagram.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.linkedin.com/*"
+      ],
+      "js": [
+        "distraction.js"
+      ],
+      "css": [
+        "distraction.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "blocked.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "extension@focusfort.app",
+      "strict_min_version": "121.0"
+    }
+  }
+}
