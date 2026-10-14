@@ -2,8 +2,23 @@
 
 ## Progress log
 
+- **v0.3** — Phase 2 (device-side enforcement) written:
+  - `UsageTracker` (foreground app + per-app usage via UsageStatsManager),
+    `PolicyMapper`, `Enforcer` run every 2s by the foreground service.
+  - `BlockActivity` friendly full-screen block (app block, daily limit, bedtime).
+  - Commands handled on-device (`lock_now`/`focus_now` → `DevicePolicyManager.lockNow`,
+    `unlink` → clear + stop) with server-side ack (device-sync `ack_command_ids`).
+  - `PermissionsActivity` for Usage Access / overlay / notifications with live status.
+  - Web: app-usage report (last 7 days) + realtime device status on the dashboard.
+  - Compliance: privacy-policy draft (`07`) + Play Data Safety mapping (`08`).
+  - Gradle wrapper committed (gradle 8.9) so the app builds from a clean clone.
+  - ⚠️ Still not compiled here (no Android SDK); FCM stubbed. Usage reporting sends
+    cumulative totals (TODO: deltas). Build + device-test in Android Studio next.
+- **v0.2** — Phase 1:
+  - Parent web working app; `create-enrollment-token`; Android enrollment spine.
 - **v0.1** — foundation/scaffold (docs, schema, RLS, skeletons). See below.
-- **v0.2** — Phase 1 in progress:
+
+### (historical) v0.2 Phase 1 detail
   - Parent web is now a working app (builds clean): sign in, add child, generate
     enrollment QR, edit policy (screen time, bedtime, web filter, blocked apps,
     location), send "lock now"/"unlink". Verified with `npm run build`.

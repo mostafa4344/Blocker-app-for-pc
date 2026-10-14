@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
     known_policy_version?: number;
     status?: { battery_pct?: number; foreground_app?: string };
     usage?: Array<{ package_name: string; foreground_s: number; occurred_at: string }>;
+    ack_command_ids?: string[];
   } = {};
   try {
     if (req.headers.get("content-length") !== "0") body = await req.json();
@@ -42,6 +43,15 @@ Deno.serve(async (req) => {
   if (dErr) return json({ error: "server_error" }, 500);
   if (!device) return json({ error: "unknown_device" }, 404);
   if (device.revoked_at) return json({ error: "revoked", action: "self_disable" }, 403);
+
+  // Ack commands the device has applied (before fetching pending ones, so acked
+  // commands are not returned again). Scoped to this device.
+  if (Array.isArray(body.ack_command_ids) && body.ack_command_ids.length > 0) {
+    await db.from("device_commands")
+      .update({ acked_at: new Date().toISOString() })
+      .eq("device_id", deviceId)
+      .in("id", body.ack_command_ids.slice(0, 100));
+  }
 
   // Update live status.
   await db.from("devices").update({

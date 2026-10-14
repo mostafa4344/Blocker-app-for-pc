@@ -93,6 +93,8 @@ class EnrollmentActivity : Activity() {
                         ensureServiceRunning()
                         render()
                         toast(getString(R.string.enroll_done))
+                        // Guide the user through the special accesses enforcement needs.
+                        startActivity(Intent(this, PermissionsActivity::class.java))
                     },
                     onFailure = { toast(getString(R.string.enroll_failed)) },
                 )

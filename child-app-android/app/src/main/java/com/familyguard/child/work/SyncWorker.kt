@@ -9,37 +9,66 @@ import androidx.work.WorkerParameters
 import com.familyguard.child.net.Api
 import com.familyguard.child.net.SecureStore
 import com.familyguard.child.policy.PolicyStore
+import com.familyguard.child.policy.UsageTracker
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * Periodic sync (fallback to FCM wake). Pulls the latest policy + commands and
- * pushes status/usage. Offline-first: if the network is down, the cached policy
- * from PolicyStore keeps being enforced by the service; this worker just refreshes.
+ * Periodic sync (FCM wake triggers an immediate run). Pulls the latest policy +
+ * commands, pushes status/usage, applies commands, then acks them.
+ *
+ * Offline-first: if the network is down, the cached policy keeps being enforced
+ * by the service; this worker only refreshes config and telemetry.
  */
 class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
 
     override suspend fun doWork(): Result {
         val store = SecureStore(applicationContext)
         if (!store.isEnrolled) return Result.success()
-
         val base = store.apiBaseUrl ?: return Result.success()
         val api = Api(base, store)
         val policyStore = PolicyStore(applicationContext)
+        val usage = UsageTracker(applicationContext)
 
         val payload = JSONObject()
             .put("known_policy_version", policyStore.version)
-            .put("status", JSONObject().put("battery_pct", Battery.level(applicationContext)))
-        // TODO(phase2): attach usage batch from UsageStatsManager.
+            .put("status", JSONObject()
+                .put("battery_pct", Battery.level(applicationContext))
+                .put("foreground_app", usage.currentForegroundApp()))
+            .put("usage", usageBatch(usage))
 
         return api.sync(payload).fold(
             onSuccess = { body ->
                 body.optJSONObject("policy")?.let { policyStore.save(it) }
-                // TODO: handle body.getJSONArray("commands") (lock_now, unlink, ...)
+                val commands = body.optJSONArray("commands") ?: JSONArray()
+                val handled = CommandHandler.handle(applicationContext, commands)
+                if (handled.isNotEmpty() && SecureStore(applicationContext).isEnrolled) {
+                    // Ack handled commands so they are not returned/re-fired next poll.
+                    val ackPayload = JSONObject().put("ack_command_ids", JSONArray(handled))
+                    api.sync(ackPayload)
+                }
                 Result.success()
             },
             onFailure = { if (it.message == "revoked") Result.success() else Result.retry() },
         )
+    }
+
+    /**
+     * Today's per-app foreground seconds as the usage_events batch shape.
+     * TODO(phase2.1): send deltas since last sync, not cumulative totals, and
+     * have the backend upsert a daily bucket — otherwise reports double-count.
+     */
+    private fun usageBatch(usage: UsageTracker): JSONArray {
+        val arr = JSONArray()
+        val nowIso = java.time.Instant.now().toString()
+        for ((pkg, secs) in usage.usageTodaySeconds()) {
+            arr.put(JSONObject()
+                .put("package_name", pkg)
+                .put("foreground_s", secs)
+                .put("occurred_at", nowIso))
+        }
+        return arr
     }
 
     companion object {

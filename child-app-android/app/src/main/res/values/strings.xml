@@ -33,4 +33,13 @@
     <!-- Block / limit screens (used by PolicyEngine when enforcement is wired up) -->
     <string name="blocked_by_guardian">This app is turned off right now by your guardian.</string>
     <string name="daily_limit_reached">You\'ve used your time for today. Try again tomorrow.</string>
+    <string name="blocked_bedtime">It\'s bedtime. The phone is resting until morning.</string>
+    <string name="block_go_home">OK, go home</string>
+
+    <!-- Permissions flow -->
+    <string name="perm_title">Finish setup</string>
+    <string name="perm_usage">Usage access — so screen-time limits and reports work.</string>
+    <string name="perm_overlay">Display over other apps — so the time-up screen can appear.</string>
+    <string name="perm_notif">Notifications — for the always-on status notice.</string>
+    <string name="perm_grant">Grant</string>
 </resources>

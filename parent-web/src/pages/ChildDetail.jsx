@@ -14,6 +14,7 @@ export default function ChildDetail() {
   const [child, setChild] = useState(null);
   const [policy, setPolicy] = useState(null);
   const [devices, setDevices] = useState([]);
+  const [usage, setUsage] = useState([]);
   const [blockPkg, setBlockPkg] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -28,6 +29,27 @@ export default function ChildDetail() {
     const { data: d } = await supabase
       .from("devices").select("id, label, last_seen_at, revoked_at").eq("child_id", childId);
     setDevices(d ?? []);
+    await loadUsage(d ?? []);
+  }
+
+  async function loadUsage(devs) {
+    const ids = devs.map((x) => x.id);
+    if (ids.length === 0) { setUsage([]); return; }
+    const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const { data } = await supabase
+      .from("usage_events")
+      .select("package_name, foreground_s, occurred_at")
+      .in("device_id", ids)
+      .gte("occurred_at", since)
+      .limit(5000);
+    // Aggregate per package (keep the max cumulative per day-ish; simple sum here).
+    const totals = {};
+    for (const r of data ?? []) totals[r.package_name] = Math.max(totals[r.package_name] ?? 0, r.foreground_s);
+    const list = Object.entries(totals)
+      .map(([pkg, secs]) => ({ pkg, secs }))
+      .sort((a, b) => b.secs - a.secs)
+      .slice(0, 10);
+    setUsage(list);
   }
   useEffect(() => { load(); }, [childId]);
 
@@ -147,6 +169,20 @@ export default function ChildDetail() {
       {err && <span style={{ color: "#b00", marginLeft: 12 }}>{err}</span>}
 
       <section style={box}>
+        <h3>App usage (last 7 days)</h3>
+        {usage.length === 0 ? (
+          <p style={{ color: "#888" }}>No usage reported yet.</p>
+        ) : (
+          usage.map((u) => (
+            <div key={u.pkg} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, margin: "4px 0" }}>
+              <code>{u.pkg}</code>
+              <span>{fmtDuration(u.secs)}</span>
+            </div>
+          ))
+        )}
+      </section>
+
+      <section style={box}>
         <h3>Devices</h3>
         {devices.length === 0 && <p style={{ color: "#888" }}>No device enrolled.</p>}
         {devices.map((d) => (
@@ -167,3 +203,9 @@ export default function ChildDetail() {
 
 const box = { padding: 16, border: "1px solid #eee", borderRadius: 12, margin: "12px 0" };
 const row = { display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0" };
+
+function fmtDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.round((secs % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}

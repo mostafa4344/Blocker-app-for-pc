@@ -25,7 +25,16 @@ export default function Dashboard() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Live-refresh when any device row this parent can see changes.
+    // (Enable Realtime on the `devices` table in Supabase for this to fire.)
+    const ch = supabase
+      .channel("devices-status")
+      .on("postgres_changes", { event: "*", schema: "public", table: "devices" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   async function onAdd(e) {
     e.preventDefault();
