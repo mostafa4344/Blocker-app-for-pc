@@ -18,4 +18,19 @@
 
     <!-- Transparency screen entry -->
     <string name="transparency_title">What my guardian can see</string>
+
+    <!-- Enrollment flow -->
+    <string name="enroll_needed">This phone is not set up yet. Tap below to start family protection.</string>
+    <string name="enroll_active">Family protection is active on this phone.</string>
+    <string name="enroll_start">Start setup</string>
+    <string name="scan_prompt">Scan the setup code shown on the parent\'s screen</string>
+    <string name="scan_invalid">That code was not valid. Ask your guardian for a new one.</string>
+    <string name="enroll_working">Setting up…</string>
+    <string name="enroll_done">All set. Protection is now active.</string>
+    <string name="enroll_failed">Setup failed. Check the connection and try a fresh code.</string>
+    <string name="admin_explanation">FamilyGuard uses device administration so screen-time and app rules stay in place. You can see everything it does from the app.</string>
+
+    <!-- Block / limit screens (used by PolicyEngine when enforcement is wired up) -->
+    <string name="blocked_by_guardian">This app is turned off right now by your guardian.</string>
+    <string name="daily_limit_reached">You\'ve used your time for today. Try again tomorrow.</string>
 </resources>

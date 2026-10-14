@@ -1,5 +1,21 @@
 # 05 — Roadmap & Status
 
+## Progress log
+
+- **v0.1** — foundation/scaffold (docs, schema, RLS, skeletons). See below.
+- **v0.2** — Phase 1 in progress:
+  - Parent web is now a working app (builds clean): sign in, add child, generate
+    enrollment QR, edit policy (screen time, bedtime, web filter, blocked apps,
+    location), send "lock now"/"unlink". Verified with `npm run build`.
+  - Backend: added `create-enrollment-token` Edge Function (parent-authed, mints
+    single-use token, stores only the hash).
+  - Android: full enrollment spine written — Gradle config, `SecureStore`
+    (EncryptedSharedPreferences), `Api` (OkHttp → enroll/sync/heartbeat),
+    `EnrollmentActivity` (disclosure → QR scan → enroll), `SyncWorker`,
+    `PolicyStore`, `BootReceiver`, layouts/theme/icon.
+    ⚠️ Not yet compiled here (no Android SDK in this environment) and FCM is
+    stubbed (needs `google-services.json`). Build in Android Studio next.
+
 ## Where we are: v0.1 "foundation"
 
 This commit is a **scaffold**: architecture, security, and compliance are designed and documented;

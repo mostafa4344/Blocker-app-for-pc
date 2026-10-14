@@ -27,13 +27,13 @@ class PolicyEngine(private val policy: Policy) {
 
         val rule = policy.appRules[pkg]
         when (rule?.action) {
-            AppAction.BLOCK -> return Decision.Block(/*R.string.blocked_by_guardian*/ 0)
+            AppAction.BLOCK -> return Decision.Block(com.familyguard.child.R.string.blocked_by_guardian)
             AppAction.ALLOW, null -> { /* fall through to limits */ }
         }
 
         policy.dailyLimitMin?.let { limit ->
             val remaining = limit * 60 - usedSecondsToday
-            if (remaining <= 0) return Decision.Block(/*R.string.daily_limit_reached*/ 0)
+            if (remaining <= 0) return Decision.Block(com.familyguard.child.R.string.daily_limit_reached)
             return Decision.TimeLimited(remaining)
         }
         return Decision.Allow

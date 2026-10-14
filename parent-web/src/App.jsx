@@ -3,10 +3,12 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "./lib/supabase.js";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import ChildDetail from "./pages/ChildDetail.jsx";
+import EnrollDevice from "./pages/EnrollDevice.jsx";
 
 /**
- * Auth gate. The whole dashboard is behind a Supabase session. RLS does the real
- * per-family isolation on the server; this is just the UI gate.
+ * Auth gate + routes. RLS does the real per-family isolation on the server;
+ * this is just the UI gate.
  */
 export default function App() {
   const [session, setSession] = useState(null);
@@ -22,11 +24,19 @@ export default function App() {
   }, []);
 
   if (loading) return <div style={{ padding: 24 }}>Loading…</div>;
+  if (!session) {
+    return (
+      <Routes>
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" /> : <Login />} />
-      <Route path="/" element={session ? <Dashboard /> : <Navigate to="/login" />} />
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/child/:childId" element={<ChildDetail />} />
+      <Route path="/child/:childId/enroll" element={<EnrollDevice />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
