@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test extension/test/*.test.js
+      - run: npm test
+        working-directory: backend
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: focusfort-agent.exe
+            pkg: windows
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: focusfort-agent
+            pkg: macos
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: focusfort-agent
+            pkg: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }} -p focusfort-agent
+      - name: Assemble release folder
+        shell: bash
+        run: |
+          mkdir -p dist/FocusFort
+          cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/FocusFort/
+          cp -r packaging/${{ matrix.pkg }}/* dist/FocusFort/
+          cp -r extension dist/FocusFort/extension
+          rm -rf dist/FocusFort/extension/test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FocusFort-${{ matrix.pkg }}
+          path: dist/FocusFort

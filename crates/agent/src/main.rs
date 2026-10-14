@@ -34,12 +34,46 @@ pub fn run_until(stop: Arc<AtomicBool>) -> std::io::Result<()> {
     let app = open_app()?;
     let port = paths::listen_port();
     api::serve(app.clone(), port, 4)?;
-    eprintln!("focusfort: listening on http://127.0.0.1:{port} (data: {})", paths::data_dir().display());
+    eprintln!(
+        "focusfort: listening on http://127.0.0.1:{port} (data: {})",
+        paths::data_dir().display()
+    );
     let sync_app = app.clone();
     let sync_stop = stop.clone();
     std::thread::spawn(move || sync::run(sync_app, sync_stop));
     enforce::run(app, stop);
     Ok(())
+}
+
+/// Asks the running agent (so its in-memory state stays authoritative); falls
+/// back to reading the data files when the agent is not running.
+fn uninstall_check() -> std::io::Result<(bool, Arc<App>)> {
+    let url = format!(
+        "http://127.0.0.1:{}/api/uninstall/consume",
+        paths::listen_port()
+    );
+    let http: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(5)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let app = open_app()?;
+    match http
+        .post(&url)
+        .header("X-FocusFort", "1")
+        .send_json(serde_json::json!({}))
+    {
+        Ok(mut resp) if resp.status() == 200 => {
+            let v: serde_json::Value =
+                resp.body_mut().read_json().map_err(std::io::Error::other)?;
+            Ok((v["allowed"].as_bool().unwrap_or(false), app))
+        }
+        Ok(resp) => Err(std::io::Error::other(format!(
+            "agent answered {}",
+            resp.status()
+        ))),
+        Err(_) => Ok((app.uninstall_check()?, app)),
+    }
 }
 
 fn main() {
@@ -63,7 +97,7 @@ fn main() {
                 1
             }
         },
-        "uninstall-check" => match open_app().and_then(|app| Ok((app.uninstall_check()?, app))) {
+        "uninstall-check" => match uninstall_check() {
             Ok((true, app)) => {
                 sync::report_uninstalled(&app);
                 println!("allowed");

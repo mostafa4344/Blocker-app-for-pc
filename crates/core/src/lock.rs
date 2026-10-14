@@ -39,14 +39,29 @@ pub fn locked_list_ids(config: &Config, state: &State, now: DateTime<Utc>) -> Ve
             ids.push(id.clone())
         }
     };
-    state.sessions.iter().filter(|s| s.is_locked(now)).for_each(|s| push(&s.block_list_id));
-    config.schedules.iter().filter(|s| s.enabled && s.locked).for_each(|s| push(&s.block_list_id));
-    config.limits.iter().filter(|l| l.enabled && l.locked).for_each(|l| push(&l.block_list_id));
+    state
+        .sessions
+        .iter()
+        .filter(|s| s.is_locked(now))
+        .for_each(|s| push(&s.block_list_id));
+    config
+        .schedules
+        .iter()
+        .filter(|s| s.enabled && s.locked)
+        .for_each(|s| push(&s.block_list_id));
+    config
+        .limits
+        .iter()
+        .filter(|l| l.enabled && l.locked)
+        .for_each(|l| push(&l.block_list_id));
     ids
 }
 
 fn norm(v: &[String]) -> Vec<String> {
-    v.iter().map(|s| s.trim().to_ascii_lowercase()).filter(|s| !s.is_empty()).collect()
+    v.iter()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn superset(new: &[String], old: &[String]) -> bool {
@@ -58,23 +73,42 @@ fn list_is_stricter(new: &BlockList, old: &BlockList) -> bool {
     if new.allowlist_mode != old.allowlist_mode {
         return false;
     }
-    let sites_ok = if old.allowlist_mode { superset(&old.sites, &new.sites) } else { superset(&new.sites, &old.sites) };
+    let sites_ok = if old.allowlist_mode {
+        superset(&old.sites, &new.sites)
+    } else {
+        superset(&new.sites, &old.sites)
+    };
     sites_ok && superset(&new.apps, &old.apps) && superset(&new.keywords, &old.keywords)
 }
 
 /// Validates replacing `old` with `new` given what is currently locked.
-pub fn validate_update(old: &Config, new: &Config, state: &State, now: DateTime<Utc>) -> Result<(), PolicyError> {
+pub fn validate_update(
+    old: &Config,
+    new: &Config,
+    state: &State,
+    now: DateTime<Utc>,
+) -> Result<(), PolicyError> {
     for id in locked_list_ids(old, state, now) {
-        let Some(o) = old.block_list(&id) else { continue };
+        let Some(o) = old.block_list(&id) else {
+            continue;
+        };
         match new.block_list(&id) {
             Some(n) if list_is_stricter(n, o) => {}
-            _ => return Err(PolicyError::ListLocked { name: o.name.clone() }),
+            _ => {
+                return Err(PolicyError::ListLocked {
+                    name: o.name.clone(),
+                })
+            }
         }
     }
     for o in old.schedules.iter().filter(|s| s.enabled && s.locked) {
-        let ok = new.schedules.iter().find(|n| n.id == o.id).is_some_and(|n| {
-            n.enabled && n.locked && n.block_list_id == o.block_list_id && covers(n, o)
-        });
+        let ok = new
+            .schedules
+            .iter()
+            .find(|n| n.id == o.id)
+            .is_some_and(|n| {
+                n.enabled && n.locked && n.block_list_id == o.block_list_id && covers(n, o)
+            });
         if !ok {
             return Err(PolicyError::ScheduleLocked { id: o.id.clone() });
         }
@@ -103,7 +137,11 @@ pub fn validate_update(old: &Config, new: &Config, state: &State, now: DateTime<
 
 /// Structural sanity checks independent of locks.
 pub fn validate_shape(c: &Config) -> Result<(), PolicyError> {
-    let invalid = |w: &str| Err(PolicyError::Invalid { what: w.to_string() });
+    let invalid = |w: &str| {
+        Err(PolicyError::Invalid {
+            what: w.to_string(),
+        })
+    };
     for (i, b) in c.block_lists.iter().enumerate() {
         if b.id.trim().is_empty() || c.block_lists[..i].iter().any(|x| x.id == b.id) {
             return invalid("block_list.id");
@@ -133,7 +171,9 @@ pub fn validate_shape(c: &Config) -> Result<(), PolicyError> {
             return invalid("protection.partner.email");
         }
     }
-    if c.protection.level == crate::model::ProtectionLevel::Partner && c.protection.partner.is_none() {
+    if c.protection.level == crate::model::ProtectionLevel::Partner
+        && c.protection.partner.is_none()
+    {
         return invalid("protection.partner");
     }
     Ok(())
@@ -147,21 +187,33 @@ pub fn start_session(
     now: DateTime<Utc>,
 ) -> Result<Session, PolicyError> {
     if config.block_list(block_list_id).is_none() {
-        return Err(PolicyError::NotFound { what: "block_list".into() });
+        return Err(PolicyError::NotFound {
+            what: "block_list".into(),
+        });
     }
     if !(1..=MAX_SESSION_MINUTES).contains(&minutes) {
-        return Err(PolicyError::Invalid { what: "minutes".into() });
+        return Err(PolicyError::Invalid {
+            what: "minutes".into(),
+        });
     }
     if let LockKind::RandomText { length } = lock {
         if !(10..=2000).contains(&length) {
-            return Err(PolicyError::Invalid { what: "lock.length".into() });
+            return Err(PolicyError::Invalid {
+                what: "lock.length".into(),
+            });
         }
     }
     if lock == LockKind::Partner && config.protection.partner.is_none() {
-        return Err(PolicyError::Invalid { what: "protection.partner".into() });
+        return Err(PolicyError::Invalid {
+            what: "protection.partner".into(),
+        });
     }
     let practice = config.settings.practice_mode_until.is_some_and(|t| now < t);
-    let minutes = if practice && lock != LockKind::None { minutes.min(PRACTICE_MAX_LOCK_MINUTES) } else { minutes };
+    let minutes = if practice && lock != LockKind::None {
+        minutes.min(PRACTICE_MAX_LOCK_MINUTES)
+    } else {
+        minutes
+    };
     Ok(Session {
         id: crate::new_id(),
         block_list_id: block_list_id.to_string(),
@@ -181,7 +233,11 @@ pub enum UnlockProof {
     PartnerApproved,
 }
 
-pub fn can_end_session(session: &Session, proof: UnlockProof, now: DateTime<Utc>) -> Result<(), PolicyError> {
+pub fn can_end_session(
+    session: &Session,
+    proof: UnlockProof,
+    now: DateTime<Utc>,
+) -> Result<(), PolicyError> {
     if !session.is_active(now) {
         return Ok(());
     }
@@ -195,7 +251,9 @@ pub fn can_end_session(session: &Session, proof: UnlockProof, now: DateTime<Utc>
     if ok {
         Ok(())
     } else {
-        Err(PolicyError::SessionLocked { id: session.id.clone() })
+        Err(PolicyError::SessionLocked {
+            id: session.id.clone(),
+        })
     }
 }
 
@@ -242,7 +300,10 @@ mod tests {
         assert!(validate_update(&old, &more, &State::default(), now).is_ok());
         let mut less = old.clone();
         less.block_lists[0].sites.clear();
-        assert!(matches!(validate_update(&old, &less, &State::default(), now), Err(PolicyError::ListLocked { .. })));
+        assert!(matches!(
+            validate_update(&old, &less, &State::default(), now),
+            Err(PolicyError::ListLocked { .. })
+        ));
         let mut deleted = old.clone();
         deleted.block_lists.clear();
         deleted.schedules.clear();
@@ -256,10 +317,16 @@ mod tests {
         let now = Utc::now();
         let mut shorter = old.clone();
         shorter.schedules[0].end_minute = 600;
-        assert!(matches!(validate_update(&old, &shorter, &State::default(), now), Err(PolicyError::ScheduleLocked { .. })));
+        assert!(matches!(
+            validate_update(&old, &shorter, &State::default(), now),
+            Err(PolicyError::ScheduleLocked { .. })
+        ));
         let mut looser = old.clone();
         looser.limits[0].daily_minutes = 60;
-        assert!(matches!(validate_update(&old, &looser, &State::default(), now), Err(PolicyError::LimitLocked { .. })));
+        assert!(matches!(
+            validate_update(&old, &looser, &State::default(), now),
+            Err(PolicyError::LimitLocked { .. })
+        ));
         let mut tighter = old.clone();
         tighter.limits[0].daily_minutes = 10;
         tighter.limits[0].max_opens = Some(2);
@@ -282,11 +349,17 @@ mod tests {
     #[test]
     fn protection_cannot_be_lowered_directly() {
         let old = Config {
-            protection: Protection { level: ProtectionLevel::Committed, ..Default::default() },
+            protection: Protection {
+                level: ProtectionLevel::Committed,
+                ..Default::default()
+            },
             ..Default::default()
         };
         let new = Config::default();
-        assert_eq!(validate_update(&old, &new, &State::default(), Utc::now()), Err(PolicyError::ProtectionRequiresRequest));
+        assert_eq!(
+            validate_update(&old, &new, &State::default(), Utc::now()),
+            Err(PolicyError::ProtectionRequiresRequest)
+        );
     }
 
     #[test]
@@ -308,7 +381,10 @@ mod tests {
         let mut c = base();
         c.settings.practice_mode_until = Some(now + Duration::days(7));
         let s = start_session(&c, "a", 600, LockKind::Timer, now).unwrap();
-        assert_eq!(s.ends_at - s.started_at, Duration::minutes(PRACTICE_MAX_LOCK_MINUTES));
+        assert_eq!(
+            s.ends_at - s.started_at,
+            Duration::minutes(PRACTICE_MAX_LOCK_MINUTES)
+        );
         let free = start_session(&c, "a", 600, LockKind::None, now).unwrap();
         assert_eq!(free.ends_at - free.started_at, Duration::minutes(600));
     }

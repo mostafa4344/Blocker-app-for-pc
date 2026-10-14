@@ -1,0 +1,12 @@
+{
+  "name": "focusfort-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Temporary partner/sync backend for FocusFort. Zero dependencies; JSON-file storage. To be moved to Supabase (see supabase/ and NOTES.md).",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

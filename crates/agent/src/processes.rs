@@ -9,11 +9,45 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, Signal, System, Update
 /// Processes that are never closed, whatever the block lists say, because
 /// closing them would break the operating system or FocusFort itself.
 const NEVER_CLOSE: &[&str] = &[
-    "focusfort-agent", "system", "idle", "smss", "csrss", "wininit", "winlogon", "services", "lsass",
-    "svchost", "explorer", "dwm", "fontdrvhost", "sihost", "taskhostw", "ctfmon", "conhost",
-    "runtimebroker", "searchhost", "startmenuexperiencehost", "shellexperiencehost", "taskmgr",
-    "init", "systemd", "launchd", "kernel_task", "windowserver", "loginwindow", "finder", "dock",
-    "xorg", "gnome-shell", "plasmashell", "kwin_x11", "kwin_wayland", "sddm", "gdm", "lightdm", "sshd",
+    "focusfort-agent",
+    "system",
+    "idle",
+    "smss",
+    "csrss",
+    "wininit",
+    "winlogon",
+    "services",
+    "lsass",
+    "svchost",
+    "explorer",
+    "dwm",
+    "fontdrvhost",
+    "sihost",
+    "taskhostw",
+    "ctfmon",
+    "conhost",
+    "runtimebroker",
+    "searchhost",
+    "startmenuexperiencehost",
+    "shellexperiencehost",
+    "taskmgr",
+    "init",
+    "systemd",
+    "launchd",
+    "kernel_task",
+    "windowserver",
+    "loginwindow",
+    "finder",
+    "dock",
+    "xorg",
+    "gnome-shell",
+    "plasmashell",
+    "kwin_x11",
+    "kwin_wayland",
+    "sddm",
+    "gdm",
+    "lightdm",
+    "sshd",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -33,11 +67,12 @@ impl BrowserFamily {
 
 pub fn browser_family(name: &str) -> Option<BrowserFamily> {
     match normalize_app(name).as_str() {
-        "chrome" | "google chrome" | "msedge" | "microsoft edge" | "brave" | "brave browser" | "opera"
-        | "opera_gx" | "vivaldi" | "chromium" | "chromium-browser" | "yandex" | "browser" | "arc" => {
-            Some(BrowserFamily::Chromium)
+        "chrome" | "google chrome" | "msedge" | "microsoft edge" | "brave" | "brave browser"
+        | "opera" | "opera_gx" | "vivaldi" | "chromium" | "chromium-browser" | "yandex"
+        | "browser" | "arc" => Some(BrowserFamily::Chromium),
+        "firefox" | "firefox-esr" | "librewolf" | "waterfox" | "zen" | "floorp" => {
+            Some(BrowserFamily::Firefox)
         }
-        "firefox" | "firefox-esr" | "librewolf" | "waterfox" | "zen" | "floorp" => Some(BrowserFamily::Firefox),
         _ => None,
     }
 }
@@ -62,7 +97,11 @@ pub struct Watcher {
 
 impl Watcher {
     pub fn new() -> Self {
-        Watcher { sys: System::new(), seen_names: HashSet::new(), own_pid: sysinfo::get_current_pid().ok() }
+        Watcher {
+            sys: System::new(),
+            seen_names: HashSet::new(),
+            own_pid: sysinfo::get_current_pid().ok(),
+        }
     }
 
     /// Current processes plus the set of normalised names that were not running at the previous scan.
@@ -77,7 +116,11 @@ impl Watcher {
             .processes()
             .iter()
             .filter(|(pid, _)| Some(**pid) != self.own_pid)
-            .map(|(pid, p)| Proc { pid: *pid, name: p.name().to_string_lossy().into_owned(), start_time: p.start_time() })
+            .map(|(pid, p)| Proc {
+                pid: *pid,
+                name: p.name().to_string_lossy().into_owned(),
+                start_time: p.start_time(),
+            })
             .collect();
         let names: HashSet<String> = procs.iter().map(|p| normalize_app(&p.name)).collect();
         let new_names = names.difference(&self.seen_names).cloned().collect();
@@ -87,7 +130,9 @@ impl Watcher {
 
     /// Asks the process to exit, forcing it if the platform has no polite signal.
     pub fn close(&self, pid: Pid) -> bool {
-        let Some(p) = self.sys.process(pid) else { return false };
+        let Some(p) = self.sys.process(pid) else {
+            return false;
+        };
         if is_protected(&p.name().to_string_lossy()) {
             return false;
         }

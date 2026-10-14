@@ -22,10 +22,17 @@ impl TrustedClock {
             Some(p) if p > wall => p,
             _ => wall,
         };
-        TrustedClock { last_wall: wall, trusted }
+        TrustedClock {
+            last_wall: wall,
+            trusted,
+        }
     }
 
-    pub fn tick(&mut self, wall: DateTime<Utc>, monotonic_elapsed: std::time::Duration) -> DateTime<Utc> {
+    pub fn tick(
+        &mut self,
+        wall: DateTime<Utc>,
+        monotonic_elapsed: std::time::Duration,
+    ) -> DateTime<Utc> {
         let mono = Duration::from_std(monotonic_elapsed).unwrap_or(Duration::zero());
         let wall_delta = wall - self.last_wall;
         let delta = if (wall_delta - mono).num_seconds().abs() <= TOLERANCE_SECS {
@@ -59,7 +66,10 @@ mod tests {
     fn normal_progress() {
         let t0 = Utc::now();
         let mut c = TrustedClock::new(t0, None);
-        assert_eq!(c.tick(t0 + Duration::seconds(5), Std::from_secs(5)), t0 + Duration::seconds(5));
+        assert_eq!(
+            c.tick(t0 + Duration::seconds(5), Std::from_secs(5)),
+            t0 + Duration::seconds(5)
+        );
     }
 
     #[test]
@@ -77,7 +87,10 @@ mod tests {
         let now = c.tick(t0 - Duration::hours(3), Std::from_secs(5));
         assert_eq!(now, t0 + Duration::seconds(5));
         // Subsequent normal ticks keep advancing from the trusted time.
-        let now = c.tick(t0 - Duration::hours(3) + Duration::seconds(5), Std::from_secs(5));
+        let now = c.tick(
+            t0 - Duration::hours(3) + Duration::seconds(5),
+            Std::from_secs(5),
+        );
         assert_eq!(now, t0 + Duration::seconds(10));
     }
 

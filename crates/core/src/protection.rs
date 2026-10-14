@@ -17,9 +17,13 @@ pub const APPROVAL_VALID_HOURS: i64 = 24;
 pub enum RequestKind {
     Uninstall,
     /// Replace the protection settings with less strict ones.
-    ChangeProtection { new: Protection },
+    ChangeProtection {
+        new: Protection,
+    },
     /// End a partner-locked session early.
-    EndSession { session_id: String },
+    EndSession {
+        session_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -52,7 +56,12 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn new(protection: &Protection, kind: RequestKind, reason: &str, now: DateTime<Utc>) -> Request {
+    pub fn new(
+        protection: &Protection,
+        kind: RequestKind,
+        reason: &str,
+        now: DateTime<Utc>,
+    ) -> Request {
         let mut req = Request {
             id: crate::new_id(),
             kind,
@@ -70,11 +79,16 @@ impl Request {
             }
             ProtectionLevel::Mindful => req.status = RequestStatus::NeedsChallenge,
             ProtectionLevel::Committed => {
-                req.available_at = Some(now + Duration::hours(protection.cooldown_hours.clamp(1, 168) as i64));
+                req.available_at =
+                    Some(now + Duration::hours(protection.cooldown_hours.clamp(1, 168) as i64));
             }
             ProtectionLevel::Partner => {
                 req.needs_partner = protection.partner.is_some();
-                let days = if req.needs_partner { protection.partner_timeout_days.clamp(1, 30) } else { 3 };
+                let days = if req.needs_partner {
+                    protection.partner_timeout_days.clamp(1, 30)
+                } else {
+                    3
+                };
                 req.available_at = Some(now + Duration::days(days as i64));
             }
         }
@@ -91,13 +105,20 @@ impl Request {
 
     pub fn partner_decision(&mut self, approve: bool, now: DateTime<Utc>) {
         if self.status == RequestStatus::Pending && self.needs_partner {
-            self.status = if approve { RequestStatus::Approved } else { RequestStatus::Denied };
+            self.status = if approve {
+                RequestStatus::Approved
+            } else {
+                RequestStatus::Denied
+            };
             self.decided_at = Some(now);
         }
     }
 
     pub fn cancel(&mut self, now: DateTime<Utc>) {
-        if matches!(self.status, RequestStatus::Pending | RequestStatus::NeedsChallenge | RequestStatus::Approved) {
+        if matches!(
+            self.status,
+            RequestStatus::Pending | RequestStatus::NeedsChallenge | RequestStatus::Approved
+        ) {
             self.status = RequestStatus::Cancelled;
             self.decided_at = Some(now);
         }
@@ -123,7 +144,10 @@ impl Request {
     }
 
     pub fn is_open(&self) -> bool {
-        matches!(self.status, RequestStatus::NeedsChallenge | RequestStatus::Pending | RequestStatus::Approved)
+        matches!(
+            self.status,
+            RequestStatus::NeedsChallenge | RequestStatus::Pending | RequestStatus::Approved
+        )
     }
 }
 
@@ -160,21 +184,34 @@ mod tests {
     fn prot(level: ProtectionLevel) -> Protection {
         Protection {
             level,
-            partner: Some(Partner { name: "A".into(), email: "a@example.com".into() }),
+            partner: Some(Partner {
+                name: "A".into(),
+                email: "a@example.com".into(),
+            }),
             ..Default::default()
         }
     }
 
     #[test]
     fn off_is_immediate() {
-        let r = Request::new(&prot(ProtectionLevel::Off), RequestKind::Uninstall, "", Utc::now());
+        let r = Request::new(
+            &prot(ProtectionLevel::Off),
+            RequestKind::Uninstall,
+            "",
+            Utc::now(),
+        );
         assert_eq!(r.status, RequestStatus::Approved);
     }
 
     #[test]
     fn mindful_flow() {
         let now = Utc::now();
-        let mut r = Request::new(&prot(ProtectionLevel::Mindful), RequestKind::Uninstall, "", now);
+        let mut r = Request::new(
+            &prot(ProtectionLevel::Mindful),
+            RequestKind::Uninstall,
+            "",
+            now,
+        );
         r.tick(now + Duration::hours(1));
         assert_eq!(r.status, RequestStatus::NeedsChallenge);
         r.challenge_solved(now);
@@ -187,7 +224,12 @@ mod tests {
     #[test]
     fn committed_cooldown_and_expiry() {
         let now = Utc::now();
-        let mut r = Request::new(&prot(ProtectionLevel::Committed), RequestKind::Uninstall, "", now);
+        let mut r = Request::new(
+            &prot(ProtectionLevel::Committed),
+            RequestKind::Uninstall,
+            "",
+            now,
+        );
         r.tick(now + Duration::hours(23));
         assert_eq!(r.status, RequestStatus::Pending);
         r.tick(now + Duration::hours(24));
@@ -225,7 +267,13 @@ mod tests {
         shorter.cooldown_hours = 1;
         assert!(!is_at_least_as_strict(&shorter, &committed));
         let mut other_partner = prot(ProtectionLevel::Partner);
-        other_partner.partner = Some(Partner { name: "B".into(), email: "b@example.com".into() });
-        assert!(!is_at_least_as_strict(&other_partner, &prot(ProtectionLevel::Partner)));
+        other_partner.partner = Some(Partner {
+            name: "B".into(),
+            email: "b@example.com".into(),
+        });
+        assert!(!is_at_least_as_strict(
+            &other_partner,
+            &prot(ProtectionLevel::Partner)
+        ));
     }
 }

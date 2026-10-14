@@ -29,14 +29,15 @@ fn service_main(_args: Vec<OsString>) {
 fn run_service() -> windows_service::Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
     let handler_stop = stop.clone();
-    let status_handle = service_control_handler::register(SERVICE_NAME, move |event| match event {
-        ServiceControl::Stop | ServiceControl::Shutdown => {
-            handler_stop.store(true, Ordering::Relaxed);
-            ServiceControlHandlerResult::NoError
-        }
-        ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-        _ => ServiceControlHandlerResult::NotImplemented,
-    })?;
+    let status_handle =
+        service_control_handler::register(SERVICE_NAME, move |event| match event {
+            ServiceControl::Stop | ServiceControl::Shutdown => {
+                handler_stop.store(true, Ordering::Relaxed);
+                ServiceControlHandlerResult::NoError
+            }
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        })?;
 
     let status = |state, accept| ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
@@ -47,8 +48,12 @@ fn run_service() -> windows_service::Result<()> {
         wait_hint: Duration::from_secs(5),
         process_id: None,
     };
-    status_handle.set_service_status(status(ServiceState::Running, ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN))?;
+    status_handle.set_service_status(status(
+        ServiceState::Running,
+        ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+    ))?;
     let _ = crate::run_until(stop);
-    status_handle.set_service_status(status(ServiceState::Stopped, ServiceControlAccept::empty()))?;
+    status_handle
+        .set_service_status(status(ServiceState::Stopped, ServiceControlAccept::empty()))?;
     Ok(())
 }

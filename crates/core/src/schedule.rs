@@ -81,7 +81,12 @@ pub fn covers(new: &Schedule, old: &Schedule) -> bool {
             if cur >= e {
                 return true;
             }
-            match new_iv.iter().filter(|&&(ns, ne)| ns <= cur && cur < ne).map(|&(_, ne)| ne).max() {
+            match new_iv
+                .iter()
+                .filter(|&&(ns, ne)| ns <= cur && cur < ne)
+                .map(|&(_, ne)| ne)
+                .max()
+            {
                 Some(ne) => cur = ne,
                 None => return false,
             }
@@ -95,11 +100,20 @@ mod tests {
     use chrono::NaiveDate;
 
     fn at(y: i32, m: u32, d: u32, h: u32, min: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, min, 0).unwrap()
+        NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(h, min, 0)
+            .unwrap()
     }
 
     fn sched(days: &[u8], start: u16, end: u16) -> Schedule {
-        Schedule { days: days.to_vec(), start_minute: start, end_minute: end, enabled: true, ..Default::default() }
+        Schedule {
+            days: days.to_vec(),
+            start_minute: start,
+            end_minute: end,
+            enabled: true,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -117,7 +131,10 @@ mod tests {
         assert!(is_active(&s, at(2026, 10, 12, 23, 0)));
         assert!(is_active(&s, at(2026, 10, 13, 5, 59)));
         assert!(!is_active(&s, at(2026, 10, 13, 23, 0)));
-        assert_eq!(current_window_end(&s, at(2026, 10, 12, 23, 0)), Some(at(2026, 10, 13, 6, 0)));
+        assert_eq!(
+            current_window_end(&s, at(2026, 10, 12, 23, 0)),
+            Some(at(2026, 10, 13, 6, 0))
+        );
     }
 
     #[test]

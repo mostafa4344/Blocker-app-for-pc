@@ -22,11 +22,26 @@ pub const PRESETS: &[Preset] = &[
         name_bn: "সোশ্যাল মিডিয়া",
         icon: "💬",
         sites: &[
-            "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com",
-            "snapchat.com", "pinterest.com", "threads.net", "tumblr.com", "linkedin.com/feed",
-            "messenger.com", "bsky.app",
+            "facebook.com",
+            "instagram.com",
+            "tiktok.com",
+            "x.com",
+            "twitter.com",
+            "reddit.com",
+            "snapchat.com",
+            "pinterest.com",
+            "threads.net",
+            "tumblr.com",
+            "linkedin.com/feed",
+            "messenger.com",
+            "bsky.app",
         ],
-        apps: &["facebook.exe", "instagram.exe", "tiktok.exe", "messenger.exe"],
+        apps: &[
+            "facebook.exe",
+            "instagram.exe",
+            "tiktok.exe",
+            "messenger.exe",
+        ],
         keywords: &[],
     },
     Preset {
@@ -35,8 +50,17 @@ pub const PRESETS: &[Preset] = &[
         name_bn: "ভিডিও ও স্ট্রিমিং",
         icon: "🎬",
         sites: &[
-            "youtube.com", "netflix.com", "twitch.tv", "primevideo.com", "disneyplus.com",
-            "hotstar.com", "hoichoi.tv", "chorki.com", "bioscopelive.com", "vimeo.com", "kick.com",
+            "youtube.com",
+            "netflix.com",
+            "twitch.tv",
+            "primevideo.com",
+            "disneyplus.com",
+            "hotstar.com",
+            "hoichoi.tv",
+            "chorki.com",
+            "bioscopelive.com",
+            "vimeo.com",
+            "kick.com",
         ],
         apps: &["netflix.exe", "vlc.exe"],
         keywords: &[],
@@ -46,7 +70,14 @@ pub const PRESETS: &[Preset] = &[
         name_en: "Short videos only (Shorts, Reels)",
         name_bn: "শুধু শর্ট ভিডিও (Shorts, Reels)",
         icon: "📱",
-        sites: &["youtube.com/shorts", "instagram.com/reels", "instagram.com/reel", "facebook.com/reel", "facebook.com/reels", "tiktok.com"],
+        sites: &[
+            "youtube.com/shorts",
+            "instagram.com/reels",
+            "instagram.com/reel",
+            "facebook.com/reel",
+            "facebook.com/reels",
+            "tiktok.com",
+        ],
         apps: &[],
         keywords: &[],
     },
@@ -55,12 +86,31 @@ pub const PRESETS: &[Preset] = &[
         name_en: "Games",
         name_bn: "গেমস",
         icon: "🎮",
-        sites: &["store.steampowered.com", "epicgames.com", "roblox.com", "miniclip.com", "poki.com", "crazygames.com"],
+        sites: &[
+            "store.steampowered.com",
+            "epicgames.com",
+            "roblox.com",
+            "miniclip.com",
+            "poki.com",
+            "crazygames.com",
+        ],
         apps: &[
-            "steam.exe", "epicgameslauncher.exe", "battle.net.exe", "riotclientservices.exe",
-            "leagueclient.exe", "robloxplayerbeta.exe", "minecraft.exe", "minecraftlauncher.exe",
-            "valorant.exe", "fortnitelauncher.exe", "origin.exe", "eadesktop.exe", "upc.exe",
-            "Steam", "steam", "Minecraft",
+            "steam.exe",
+            "epicgameslauncher.exe",
+            "battle.net.exe",
+            "riotclientservices.exe",
+            "leagueclient.exe",
+            "robloxplayerbeta.exe",
+            "minecraft.exe",
+            "minecraftlauncher.exe",
+            "valorant.exe",
+            "fortnitelauncher.exe",
+            "origin.exe",
+            "eadesktop.exe",
+            "upc.exe",
+            "Steam",
+            "steam",
+            "Minecraft",
         ],
         keywords: &[],
     },
@@ -69,8 +119,20 @@ pub const PRESETS: &[Preset] = &[
         name_en: "Chat apps",
         name_bn: "চ্যাট অ্যাপ",
         icon: "✉️",
-        sites: &["web.whatsapp.com", "web.telegram.org", "discord.com", "messenger.com"],
-        apps: &["discord.exe", "telegram.exe", "whatsapp.exe", "Discord", "Telegram", "WhatsApp"],
+        sites: &[
+            "web.whatsapp.com",
+            "web.telegram.org",
+            "discord.com",
+            "messenger.com",
+        ],
+        apps: &[
+            "discord.exe",
+            "telegram.exe",
+            "whatsapp.exe",
+            "Discord",
+            "Telegram",
+            "WhatsApp",
+        ],
         keywords: &[],
     },
     Preset {
@@ -79,8 +141,15 @@ pub const PRESETS: &[Preset] = &[
         name_bn: "খবর",
         icon: "📰",
         sites: &[
-            "news.google.com", "cnn.com", "bbc.com", "prothomalo.com", "bdnews24.com",
-            "thedailystar.net", "jugantor.com", "kalerkantho.com", "news.ycombinator.com",
+            "news.google.com",
+            "cnn.com",
+            "bbc.com",
+            "prothomalo.com",
+            "bdnews24.com",
+            "thedailystar.net",
+            "jugantor.com",
+            "kalerkantho.com",
+            "news.ycombinator.com",
         ],
         apps: &[],
         keywords: &[],
@@ -90,7 +159,15 @@ pub const PRESETS: &[Preset] = &[
         name_en: "Shopping",
         name_bn: "শপিং",
         icon: "🛒",
-        sites: &["amazon.com", "daraz.com.bd", "aliexpress.com", "ebay.com", "temu.com", "shein.com", "rokomari.com"],
+        sites: &[
+            "amazon.com",
+            "daraz.com.bd",
+            "aliexpress.com",
+            "ebay.com",
+            "temu.com",
+            "shein.com",
+            "rokomari.com",
+        ],
         apps: &[],
         keywords: &[],
     },
@@ -100,7 +177,15 @@ pub const PRESETS: &[Preset] = &[
         name_bn: "প্রাপ্তবয়স্ক কন্টেন্ট",
         icon: "🔞",
         // A short seed list; category DNS filtering (see NOTES.md) gives full coverage.
-        sites: &["pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", "onlyfans.com", "chaturbate.com", "stripchat.com"],
+        sites: &[
+            "pornhub.com",
+            "xvideos.com",
+            "xnxx.com",
+            "xhamster.com",
+            "onlyfans.com",
+            "chaturbate.com",
+            "stripchat.com",
+        ],
         apps: &[],
         keywords: &["porn", "xxx", "nsfw", "hentai"],
     },
@@ -115,7 +200,12 @@ impl Preset {
         let own = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
         BlockList {
             id: crate::new_id(),
-            name: if language == "bn" { self.name_bn } else { self.name_en }.to_string(),
+            name: if language == "bn" {
+                self.name_bn
+            } else {
+                self.name_en
+            }
+            .to_string(),
             sites: own(self.sites),
             apps: own(self.apps),
             keywords: own(self.keywords),
@@ -136,6 +226,9 @@ mod tests {
                 assert!(SiteRule::parse(s).is_some(), "{} in {}", s, p.id);
             }
         }
-        assert_eq!(preset("social").unwrap().to_block_list("bn").name, "সোশ্যাল মিডিয়া");
+        assert_eq!(
+            preset("social").unwrap().to_block_list("bn").name,
+            "সোশ্যাল মিডিয়া"
+        );
     }
 }

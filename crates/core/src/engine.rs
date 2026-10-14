@@ -62,9 +62,17 @@ pub struct Policy {
 /// URLs that must never be blocked (browser internals, the agent itself).
 fn is_internal(url: &str) -> bool {
     let u = url.trim().to_ascii_lowercase();
-    if ["chrome://", "edge://", "about:", "chrome-extension://", "moz-extension://", "file://", "brave://"]
-        .iter()
-        .any(|p| u.starts_with(p))
+    if [
+        "chrome://",
+        "edge://",
+        "about:",
+        "chrome-extension://",
+        "moz-extension://",
+        "file://",
+        "brave://",
+    ]
+    .iter()
+    .any(|p| u.starts_with(p))
     {
         return true;
     }
@@ -92,7 +100,10 @@ impl Policy {
 }
 
 fn usage_for<'a>(state: &'a State, day: &str, limit_id: &str) -> Option<&'a Usage> {
-    state.usage.iter().find(|u| u.day == day && u.limit_id == limit_id)
+    state
+        .usage
+        .iter()
+        .find(|u| u.day == day && u.limit_id == limit_id)
 }
 
 pub fn limit_exhausted(limit: &Limit, state: &State, day: &str) -> bool {
@@ -126,18 +137,36 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
 
     for s in state.sessions.iter().filter(|s| s.is_active(now.utc)) {
         if let Some(list) = config.block_list(&s.block_list_id) {
-            add(list, Reason::Session, Some(s.ends_at), None, s.is_locked(now.utc));
+            add(
+                list,
+                Reason::Session,
+                Some(s.ends_at),
+                None,
+                s.is_locked(now.utc),
+            );
         }
     }
-    for s in config.schedules.iter().filter(|s| schedule::is_active(s, now.local)) {
+    for s in config
+        .schedules
+        .iter()
+        .filter(|s| schedule::is_active(s, now.local))
+    {
         if let Some(list) = config.block_list(&s.block_list_id) {
-            add(list, Reason::Schedule, None, schedule::current_window_end(s, now.local), s.locked);
+            add(
+                list,
+                Reason::Schedule,
+                None,
+                schedule::current_window_end(s, now.local),
+                s.locked,
+            );
         }
     }
     let day = now.day();
     let mut metered = Vec::new();
     for l in config.limits.iter().filter(|l| l.enabled) {
-        let Some(list) = config.block_list(&l.block_list_id) else { continue };
+        let Some(list) = config.block_list(&l.block_list_id) else {
+            continue;
+        };
         if limit_exhausted(l, state, &day) {
             let midnight = (now.local.date() + chrono::Duration::days(1)).and_hms_opt(0, 0, 0);
             add(list, Reason::Limit, None, midnight, l.locked);
@@ -148,19 +177,26 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
                 limit_id: l.id.clone(),
                 block_list_id: list.id.clone(),
                 remaining_seconds: (l.daily_minutes as u64 * 60).saturating_sub(used),
-                opens_left: l.max_opens.map(|m| m.saturating_sub(u.map_or(0, |u| u.opens))),
+                opens_left: l
+                    .max_opens
+                    .map(|m| m.saturating_sub(u.map_or(0, |u| u.opens))),
             });
         }
     }
 
-    let mut p = Policy { metered, ..Default::default() };
+    let mut p = Policy {
+        metered,
+        ..Default::default()
+    };
     let mut seen = Vec::new();
     for a in &active {
         if seen.contains(&a.block_list_id) {
             continue;
         }
         seen.push(a.block_list_id.clone());
-        let list = config.block_list(&a.block_list_id).expect("active list exists");
+        let list = config
+            .block_list(&a.block_list_id)
+            .expect("active list exists");
         if list.allowlist_mode {
             p.allowlist_active = true;
             push_unique(&mut p.allowed_sites, &list.sites);
@@ -183,7 +219,12 @@ pub fn limits_for_url<'a>(config: &'a Config, url: &str) -> Vec<&'a Limit> {
     config
         .limits
         .iter()
-        .filter(|l| l.enabled && config.block_list(&l.block_list_id).is_some_and(|b| list_matches_url(b, url)))
+        .filter(|l| {
+            l.enabled
+                && config
+                    .block_list(&l.block_list_id)
+                    .is_some_and(|b| list_matches_url(b, url))
+        })
         .collect()
 }
 
@@ -191,17 +232,36 @@ pub fn limits_for_app<'a>(config: &'a Config, process_name: &str) -> Vec<&'a Lim
     config
         .limits
         .iter()
-        .filter(|l| l.enabled && config.block_list(&l.block_list_id).is_some_and(|b| app_matches(&b.apps, process_name)))
+        .filter(|l| {
+            l.enabled
+                && config
+                    .block_list(&l.block_list_id)
+                    .is_some_and(|b| app_matches(&b.apps, process_name))
+        })
         .collect()
 }
 
 /// Adds usage seconds (and optionally one "open") to the given limits for today.
-pub fn record_usage(state: &mut State, limit_ids: &[String], day: &str, seconds: u64, opened: bool) {
+pub fn record_usage(
+    state: &mut State,
+    limit_ids: &[String],
+    day: &str,
+    seconds: u64,
+    opened: bool,
+) {
     for id in limit_ids {
-        let idx = match state.usage.iter().position(|u| u.day == day && &u.limit_id == id) {
+        let idx = match state
+            .usage
+            .iter()
+            .position(|u| u.day == day && &u.limit_id == id)
+        {
             Some(i) => i,
             None => {
-                state.usage.push(Usage { day: day.to_string(), limit_id: id.clone(), ..Default::default() });
+                state.usage.push(Usage {
+                    day: day.to_string(),
+                    limit_id: id.clone(),
+                    ..Default::default()
+                });
                 state.usage.len() - 1
             }
         };
@@ -215,10 +275,18 @@ pub fn record_usage(state: &mut State, limit_ids: &[String], day: &str, seconds:
 
 /// Dashboard statistics: time per site/app key, and blocked attempts.
 pub fn record_stat(state: &mut State, day: &str, key: &str, seconds: u64, blocked: bool) {
-    let idx = match state.stats.iter().position(|s| s.day == day && s.key == key) {
+    let idx = match state
+        .stats
+        .iter()
+        .position(|s| s.day == day && s.key == key)
+    {
         Some(i) => i,
         None => {
-            state.stats.push(DailyStat { day: day.to_string(), key: key.to_string(), ..Default::default() });
+            state.stats.push(DailyStat {
+                day: day.to_string(),
+                key: key.to_string(),
+                ..Default::default()
+            });
             state.stats.len() - 1
         }
     };
@@ -230,13 +298,21 @@ pub fn record_stat(state: &mut State, day: &str, key: &str, seconds: u64, blocke
 
 /// Drops expired sessions, closed requests and usage/stats older than `keep_days`.
 pub fn prune(state: &mut State, now: Now, keep_days: i64) {
-    let cutoff = (now.local.date() - chrono::Duration::days(keep_days)).format("%Y-%m-%d").to_string();
+    let cutoff = (now.local.date() - chrono::Duration::days(keep_days))
+        .format("%Y-%m-%d")
+        .to_string();
     state.sessions.retain(|s| s.ends_at > now.utc);
     state.usage.retain(|u| u.day >= cutoff);
     state.stats.retain(|s| s.day >= cutoff);
     let week_ago = now.utc - chrono::Duration::days(7);
-    state.requests.retain(|r| r.is_open() || r.decided_at.is_none_or(|d| d > week_ago));
-    if state.challenge.as_ref().is_some_and(|c| c.expires_at <= now.utc) {
+    state
+        .requests
+        .retain(|r| r.is_open() || r.decided_at.is_none_or(|d| d > week_ago));
+    if state
+        .challenge
+        .as_ref()
+        .is_some_and(|c| c.expires_at <= now.utc)
+    {
         state.challenge = None;
     }
 }
@@ -248,8 +324,14 @@ mod tests {
     use chrono::{Duration, NaiveDate, TimeZone};
 
     fn now_at(h: u32) -> Now {
-        let local = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap().and_hms_opt(h, 0, 0).unwrap();
-        Now { utc: Utc.from_utc_datetime(&local), local }
+        let local = NaiveDate::from_ymd_opt(2026, 10, 12)
+            .unwrap()
+            .and_hms_opt(h, 0, 0)
+            .unwrap();
+        Now {
+            utc: Utc.from_utc_datetime(&local),
+            local,
+        }
     }
 
     fn config() -> Config {
@@ -341,10 +423,16 @@ mod tests {
         assert!(p.is_empty());
         assert_eq!(p.metered[0].remaining_seconds, 1800);
 
-        let ids: Vec<String> = limits_for_url(&c, "https://facebook.com").iter().map(|l| l.id.clone()).collect();
+        let ids: Vec<String> = limits_for_url(&c, "https://facebook.com")
+            .iter()
+            .map(|l| l.id.clone())
+            .collect();
         assert_eq!(ids, vec!["l".to_string()]);
         record_usage(&mut state, &ids, &now.day(), 1200, true);
-        assert_eq!(effective_policy(&c, &state, now).metered[0].remaining_seconds, 600);
+        assert_eq!(
+            effective_policy(&c, &state, now).metered[0].remaining_seconds,
+            600
+        );
         record_usage(&mut state, &ids, &now.day(), 600, false);
         let p = effective_policy(&c, &state, now);
         assert_eq!(p.active[0].reason, Reason::Limit);

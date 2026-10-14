@@ -33,7 +33,11 @@ static I18N_JS: &str = include_str!("../../../ui/i18n.js");
 static STYLE_CSS: &str = include_str!("../../../ui/style.css");
 static ICON_SVG: &str = include_str!("../../../ui/icon.svg");
 
-pub fn serve(app: Arc<App>, port: u16, workers: usize) -> std::io::Result<Vec<std::thread::JoinHandle<()>>> {
+pub fn serve(
+    app: Arc<App>,
+    port: u16,
+    workers: usize,
+) -> std::io::Result<Vec<std::thread::JoinHandle<()>>> {
     let server = Arc::new(Server::http(("127.0.0.1", port)).map_err(std::io::Error::other)?);
     let mut handles = Vec::new();
     for _ in 0..workers.max(1) {
@@ -49,11 +53,21 @@ pub fn serve(app: Arc<App>, port: u16, workers: usize) -> std::io::Result<Vec<st
 }
 
 fn header<'a>(req: &'a Request, name: &str) -> Option<&'a str> {
-    req.headers().iter().find(|h| h.field.as_str().as_str().eq_ignore_ascii_case(name)).map(|h| h.value.as_str())
+    req.headers()
+        .iter()
+        .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case(name))
+        .map(|h| h.value.as_str())
 }
 
 fn is_extension_origin(o: &str) -> bool {
-    ["chrome-extension://", "moz-extension://", "extension://", "safari-web-extension://"].iter().any(|p| o.starts_with(p))
+    [
+        "chrome-extension://",
+        "moz-extension://",
+        "extension://",
+        "safari-web-extension://",
+    ]
+    .iter()
+    .any(|p| o.starts_with(p))
 }
 
 fn hdr(name: &str, value: &str) -> Header {
@@ -64,9 +78,16 @@ fn handle(app: &App, port: u16, mut req: Request) {
     let host_ok = header(&req, "Host")
         .is_some_and(|h| h == format!("127.0.0.1:{port}") || h == format!("localhost:{port}"));
     let origin = header(&req, "Origin").map(str::to_string);
-    let same_origin = |o: &str| o == format!("http://127.0.0.1:{port}") || o == format!("http://localhost:{port}");
-    let origin_ok = origin.as_deref().is_none_or(|o| same_origin(o) || is_extension_origin(o));
-    let cors_origin = origin.as_deref().filter(|o| is_extension_origin(o)).map(str::to_string);
+    let same_origin = |o: &str| {
+        o == format!("http://127.0.0.1:{port}") || o == format!("http://localhost:{port}")
+    };
+    let origin_ok = origin
+        .as_deref()
+        .is_none_or(|o| same_origin(o) || is_extension_origin(o));
+    let cors_origin = origin
+        .as_deref()
+        .filter(|o| is_extension_origin(o))
+        .map(str::to_string);
 
     let respond = |req: Request, status: u16, content_type: &str, body: String| {
         let mut resp = Response::from_string(body)
@@ -77,20 +98,34 @@ fn handle(app: &App, port: u16, mut req: Request) {
         if content_type.starts_with("text/html") {
             resp = resp
                 .with_header(hdr("X-Frame-Options", "DENY"))
-                .with_header(hdr("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'"));
+                .with_header(hdr(
+                "Content-Security-Policy",
+                "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
+            ));
         }
         if let Some(o) = &cors_origin {
             resp = resp
                 .with_header(hdr("Access-Control-Allow-Origin", o))
-                .with_header(hdr("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS"))
-                .with_header(hdr("Access-Control-Allow-Headers", "Content-Type, X-FocusFort"))
+                .with_header(hdr(
+                    "Access-Control-Allow-Methods",
+                    "GET, POST, PUT, OPTIONS",
+                ))
+                .with_header(hdr(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type, X-FocusFort",
+                ))
                 .with_header(hdr("Vary", "Origin"));
         }
         let _ = req.respond(resp);
     };
 
     if !host_ok || !origin_ok {
-        return respond(req, 403, "application/json", json!({ "code": "forbidden" }).to_string());
+        return respond(
+            req,
+            403,
+            "application/json",
+            json!({ "code": "forbidden" }).to_string(),
+        );
     }
     if req.method() == &Method::Options {
         return respond(req, 204, "text/plain", String::new());
@@ -119,12 +154,28 @@ fn handle(app: &App, port: u16, mut req: Request) {
             return respond(req, 200, ct, body.to_string());
         }
     } else if header(&req, "X-FocusFort") != Some("1") {
-        return respond(req, 403, "application/json", json!({ "code": "missing_header" }).to_string());
+        return respond(
+            req,
+            403,
+            "application/json",
+            json!({ "code": "missing_header" }).to_string(),
+        );
     }
 
     let mut body = String::new();
-    if method != Method::Get && req.as_reader().take(MAX_BODY).read_to_string(&mut body).is_err() {
-        return respond(req, 400, "application/json", json!({ "code": "bad_body" }).to_string());
+    if method != Method::Get
+        && req
+            .as_reader()
+            .take(MAX_BODY)
+            .read_to_string(&mut body)
+            .is_err()
+    {
+        return respond(
+            req,
+            400,
+            "application/json",
+            json!({ "code": "bad_body" }).to_string(),
+        );
     }
 
     let result = route(app, &method, &path, &query, &body);
@@ -132,7 +183,12 @@ fn handle(app: &App, port: u16, mut req: Request) {
         Ok(v) => (200, v),
         Err(e) => (e.status, e.body),
     };
-    respond(req, status, "application/json; charset=utf-8", value.to_string());
+    respond(
+        req,
+        status,
+        "application/json; charset=utf-8",
+        value.to_string(),
+    );
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(body: &str) -> Result<T, ApiError> {
@@ -141,7 +197,11 @@ fn parse<T: for<'de> Deserialize<'de>>(body: &str) -> Result<T, ApiError> {
 }
 
 fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
-    query.split('&').filter_map(|kv| kv.split_once('=')).find(|(k, _)| *k == key).map(|(_, v)| v)
+    query
+        .split('&')
+        .filter_map(|kv| kv.split_once('='))
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v)
 }
 
 #[derive(Deserialize)]
@@ -210,13 +270,17 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
             let b: StartSession = parse(body)?;
             app.start_session(&b.block_list_id, b.minutes, b.lock)
         }
-        (Method::Post, ["api", "sessions", id, "extend"]) => app.extend_session(id, parse::<Minutes>(body)?.minutes),
+        (Method::Post, ["api", "sessions", id, "extend"]) => {
+            app.extend_session(id, parse::<Minutes>(body)?.minutes)
+        }
         (Method::Post, ["api", "sessions", id, "stop"]) => {
             let b: Answer = parse(body)?;
             app.stop_session(id, b.answer.as_deref())
         }
 
-        (Method::Post, ["api", "challenge"]) => app.new_challenge(&parse::<NewChallenge>(body)?.purpose),
+        (Method::Post, ["api", "challenge"]) => {
+            app.new_challenge(&parse::<NewChallenge>(body)?.purpose)
+        }
 
         (Method::Post, ["api", "requests"]) => {
             let b: NewRequest = parse(body)?;
@@ -228,8 +292,14 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
         }
         (Method::Post, ["api", "requests", id, "cancel"]) => app.cancel_request(id),
         (Method::Post, ["api", "requests", id, "apply"]) => app.apply_request(id),
+        // Used by the uninstaller through `focusfort-agent uninstall-check`.
+        (Method::Post, ["api", "uninstall", "consume"]) => {
+            Ok(json!({ "allowed": app.uninstall_check()? }))
+        }
 
-        (Method::Get, ["api", "ext", "policy"]) => app.extension_policy(family(query_param(query, "browser").unwrap_or(""))),
+        (Method::Get, ["api", "ext", "policy"]) => {
+            app.extension_policy(family(query_param(query, "browser").unwrap_or("")))
+        }
         (Method::Post, ["api", "ext", "activity"]) => {
             let b: Activity = parse(body)?;
             app.extension_activity(family(&b.browser), &b.url, b.seconds, b.opened)
@@ -238,4 +308,3 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
         _ => Err(ApiError::not_found("route")),
     }
 }
-

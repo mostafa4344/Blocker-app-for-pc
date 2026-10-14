@@ -30,5 +30,8 @@ pub fn hosts_file() -> PathBuf {
 }
 
 pub fn listen_port() -> u16 {
-    std::env::var("FOCUSFORT_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(17345)
+    std::env::var("FOCUSFORT_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(17345)
 }

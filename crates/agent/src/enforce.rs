@@ -41,7 +41,8 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         // failed write is retried on the next tick.
         let wanted = hosts::hosts_for(&policy.blocked_sites);
         if applied_hosts.as_ref() != Some(&wanted) {
-            let result = hosts::apply(&hosts_path, &wanted).map_err(|e| format!("{}: {e}", hosts_path.display()));
+            let result = hosts::apply(&hosts_path, &wanted)
+                .map_err(|e| format!("{}: {e}", hosts_path.display()));
             if result.is_ok() {
                 applied_hosts = Some(wanted);
             }
@@ -53,7 +54,10 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         let now_epoch = now.utc.timestamp().max(0) as u64;
         let ext_seen: Vec<(String, u64)> = {
             let g = app.lock();
-            g.extension_seen.iter().map(|(k, v)| (k.clone(), v.elapsed().as_secs())).collect()
+            g.extension_seen
+                .iter()
+                .map(|(k, v)| (k.clone(), v.elapsed().as_secs()))
+                .collect()
         };
         let mut blocked_hits: Vec<String> = Vec::new();
         for p in &procs {
@@ -61,11 +65,16 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             let close_for_missing_extension = config.settings.require_browser_extension
                 && !policy.is_empty()
                 && browser_family(&p.name).is_some_and(|f| {
-                    let seen_recently = ext_seen.iter().any(|(k, ago)| k == f.key() && *ago < EXTENSION_GRACE_SECS);
+                    let seen_recently = ext_seen
+                        .iter()
+                        .any(|(k, ago)| k == f.key() && *ago < EXTENSION_GRACE_SECS);
                     let running_for = now_epoch.saturating_sub(p.start_time);
                     !seen_recently && running_for > EXTENSION_GRACE_SECS
                 });
-            if (close_for_block || close_for_missing_extension) && watcher.close(p.pid) && closed_pids.insert(p.pid) {
+            if (close_for_block || close_for_missing_extension)
+                && watcher.close(p.pid)
+                && closed_pids.insert(p.pid)
+            {
                 blocked_hits.push(normalize_app(&p.name));
             }
         }
@@ -77,11 +86,20 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             let mut g = app.lock();
             let day = now.day();
             for name in &running {
-                let ids: Vec<String> = engine::limits_for_app(&g.config, name).iter().map(|l| l.id.clone()).collect();
+                let ids: Vec<String> = engine::limits_for_app(&g.config, name)
+                    .iter()
+                    .map(|l| l.id.clone())
+                    .collect();
                 if ids.is_empty() {
                     continue;
                 }
-                engine::record_usage(&mut g.state, &ids, &day, tick_secs, new_names.contains(name));
+                engine::record_usage(
+                    &mut g.state,
+                    &ids,
+                    &day,
+                    tick_secs,
+                    new_names.contains(name),
+                );
                 engine::record_stat(&mut g.state, &day, &format!("app:{name}"), tick_secs, false);
                 g.state_dirty = true;
             }

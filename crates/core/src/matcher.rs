@@ -44,9 +44,16 @@ impl SiteRule {
             return None;
         }
         if r == "*" {
-            return Some(SiteRule { domain: String::new(), subdomains_only: false, path_prefix: None });
+            return Some(SiteRule {
+                domain: String::new(),
+                subdomains_only: false,
+                path_prefix: None,
+            });
         }
-        let r = r.split_once("://").map(|(_, rest)| rest.to_string()).unwrap_or(r);
+        let r = r
+            .split_once("://")
+            .map(|(_, rest)| rest.to_string())
+            .unwrap_or(r);
         let (host_part, path) = match r.find('/') {
             Some(i) => (&r[..i], Some(r[i..].trim_end_matches('*').to_string())),
             None => (r.as_str(), None),
@@ -60,7 +67,11 @@ impl SiteRule {
             return None;
         }
         let path_prefix = path.filter(|p| p != "/" && !p.is_empty());
-        Some(SiteRule { domain: domain.to_string(), subdomains_only, path_prefix })
+        Some(SiteRule {
+            domain: domain.to_string(),
+            subdomains_only,
+            path_prefix,
+        })
     }
 
     pub fn matches_host(&self, host: &str) -> bool {
@@ -89,7 +100,10 @@ impl SiteRule {
 }
 
 pub fn site_matches(rules: &[String], url: &str) -> bool {
-    rules.iter().filter_map(|r| SiteRule::parse(r)).any(|r| r.matches_url(url))
+    rules
+        .iter()
+        .filter_map(|r| SiteRule::parse(r))
+        .any(|r| r.matches_url(url))
 }
 
 pub fn keyword_matches(keywords: &[String], url: &str) -> bool {
@@ -102,7 +116,12 @@ pub fn keyword_matches(keywords: &[String], url: &str) -> bool {
 
 /// Normalises an executable name or path: `C:\Games\Steam.EXE` -> `steam`.
 pub fn normalize_app(name: &str) -> String {
-    let base = name.trim().rsplit(['/', '\\']).next().unwrap_or("").to_lowercase();
+    let base = name
+        .trim()
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
     let base = base.strip_suffix(".exe").unwrap_or(&base);
     let base = base.strip_suffix(".app").unwrap_or(base);
     base.to_string()
@@ -119,7 +138,10 @@ mod tests {
 
     #[test]
     fn host_extraction() {
-        assert_eq!(host_of("https://User@WWW.Facebook.com:443/x?y"), "www.facebook.com");
+        assert_eq!(
+            host_of("https://User@WWW.Facebook.com:443/x?y"),
+            "www.facebook.com"
+        );
         assert_eq!(host_of("reddit.com"), "reddit.com");
         assert_eq!(host_of("http://example.com."), "example.com");
     }
@@ -154,9 +176,15 @@ mod tests {
 
     #[test]
     fn keywords_and_apps() {
-        assert!(keyword_matches(&["Casino".into()], "https://a.com/best-casino"));
+        assert!(keyword_matches(
+            &["Casino".into()],
+            "https://a.com/best-casino"
+        ));
         assert!(!keyword_matches(&["".into()], "https://a.com"));
-        assert!(app_matches(&["Steam.exe".into()], r"C:\Program Files\Steam\steam.EXE"));
+        assert!(app_matches(
+            &["Steam.exe".into()],
+            r"C:\Program Files\Steam\steam.EXE"
+        ));
         assert!(app_matches(&["discord".into()], "Discord.app"));
         assert!(!app_matches(&["steam".into()], "steamwebhelper.exe"));
     }

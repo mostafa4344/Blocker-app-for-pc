@@ -12,7 +12,9 @@ use focusfort_core::matcher::SiteRule;
 
 const BEGIN: &str = "# BEGIN FocusFort (managed automatically - do not edit)";
 const END: &str = "# END FocusFort";
-const SUBDOMAINS: &[&str] = &["", "www.", "m.", "mobile.", "web.", "touch.", "mbasic.", "old.", "new."];
+const SUBDOMAINS: &[&str] = &[
+    "", "www.", "m.", "mobile.", "web.", "touch.", "mbasic.", "old.", "new.",
+];
 
 /// Host names to block for the given site rules.
 pub fn hosts_for(sites: &[String]) -> Vec<String> {
@@ -22,7 +24,11 @@ pub fn hosts_for(sites: &[String]) -> Vec<String> {
         if rule.path_prefix.is_some() || rule.domain.is_empty() {
             continue;
         }
-        let subs: &[&str] = if rule.subdomains_only { &SUBDOMAINS[1..] } else { SUBDOMAINS };
+        let subs: &[&str] = if rule.subdomains_only {
+            &SUBDOMAINS[1..]
+        } else {
+            SUBDOMAINS
+        };
         for sub in subs {
             let h = format!("{sub}{}", rule.domain);
             if !out.contains(&h) {
@@ -54,7 +60,11 @@ pub fn render(content: &str, hosts: &[String]) -> String {
     while kept.last().is_some_and(|l| l.trim().is_empty()) {
         kept.pop();
     }
-    let nl = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    let nl = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
     let mut out = kept.join(nl);
     if !out.is_empty() {
         out.push_str(nl);
@@ -93,16 +103,25 @@ fn flush_dns_cache() {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let _ = std::process::Command::new("ipconfig").arg("/flushdns").creation_flags(CREATE_NO_WINDOW).output();
+        let _ = std::process::Command::new("ipconfig")
+            .arg("/flushdns")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("dscacheutil").arg("-flushcache").output();
-        let _ = std::process::Command::new("killall").args(["-HUP", "mDNSResponder"]).output();
+        let _ = std::process::Command::new("dscacheutil")
+            .arg("-flushcache")
+            .output();
+        let _ = std::process::Command::new("killall")
+            .args(["-HUP", "mDNSResponder"])
+            .output();
     }
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("resolvectl").arg("flush-caches").output();
+        let _ = std::process::Command::new("resolvectl")
+            .arg("flush-caches")
+            .output();
     }
 }
 
@@ -112,7 +131,12 @@ mod tests {
 
     #[test]
     fn host_expansion() {
-        let h = hosts_for(&["facebook.com".into(), "youtube.com/shorts".into(), "*.reddit.com".into(), "*".into()]);
+        let h = hosts_for(&[
+            "facebook.com".into(),
+            "youtube.com/shorts".into(),
+            "*.reddit.com".into(),
+            "*".into(),
+        ]);
         assert!(h.contains(&"facebook.com".to_string()));
         assert!(h.contains(&"www.facebook.com".to_string()));
         assert!(h.contains(&"old.reddit.com".to_string()));

@@ -1,0 +1,11 @@
+[Unit]
+Description=FocusFort website and app blocker
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/focusfort-agent run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

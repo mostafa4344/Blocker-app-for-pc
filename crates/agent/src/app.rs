@@ -71,7 +71,10 @@ pub struct ApiError {
 
 impl ApiError {
     pub fn new(status: u16, code: &str, message: impl Into<String>) -> Self {
-        ApiError { status, body: json!({ "code": code, "message": message.into() }) }
+        ApiError {
+            status,
+            body: json!({ "code": code, "message": message.into() }),
+        }
     }
     pub fn bad_request(msg: impl Into<String>) -> Self {
         Self::new(400, "bad_request", msg)
@@ -103,7 +106,10 @@ impl From<io::Error> for ApiError {
 pub type ApiResult = Result<Value, ApiError>;
 
 pub fn local_now(utc: DateTime<Utc>) -> Now {
-    Now { utc, local: Local.from_utc_datetime(&utc.naive_utc()).naive_local() }
+    Now {
+        utc,
+        local: Local.from_utc_datetime(&utc.naive_utc()).naive_local(),
+    }
 }
 
 impl App {
@@ -112,7 +118,10 @@ impl App {
         let state: State = store.load(STATE_FILE)?;
         let device: Device = store.load(DEVICE_FILE)?;
         let clock = TrustedClock::new(Utc::now(), state.trusted_now);
-        let boot_time = Utc.timestamp_opt(sysinfo::System::boot_time() as i64, 0).single().unwrap_or_else(Utc::now);
+        let boot_time = Utc
+            .timestamp_opt(sysinfo::System::boot_time() as i64, 0)
+            .single()
+            .unwrap_or_else(Utc::now);
         Ok(App {
             store,
             inner: Mutex::new(Inner {
@@ -182,25 +191,43 @@ impl App {
         let inner = &mut *g;
         let (now, policy) = self.advance(inner);
         let day = now.day();
-        let usage_today: Vec<&focusfort_core::model::Usage> = inner.state.usage.iter().filter(|u| u.day == day).collect();
+        let usage_today: Vec<&focusfort_core::model::Usage> =
+            inner.state.usage.iter().filter(|u| u.day == day).collect();
         let mut stats_today: Vec<&focusfort_core::model::DailyStat> =
             inner.state.stats.iter().filter(|s| s.day == day).collect();
         stats_today.sort_by_key(|s| std::cmp::Reverse(s.seconds));
         stats_today.truncate(15);
         let mut week: Vec<Value> = Vec::new();
         for d in (0..7).rev() {
-            let key = (now.local.date() - Duration::days(d)).format("%Y-%m-%d").to_string();
+            let key = (now.local.date() - Duration::days(d))
+                .format("%Y-%m-%d")
+                .to_string();
             let (secs, blocked) = inner
                 .state
                 .stats
                 .iter()
                 .filter(|s| s.day == key)
-                .fold((0u64, 0u32), |(a, b), s| (a + s.seconds, b + s.blocked_attempts));
+                .fold((0u64, 0u32), |(a, b), s| {
+                    (a + s.seconds, b + s.blocked_attempts)
+                });
             week.push(json!({ "day": key, "seconds": secs, "blocked_attempts": blocked }));
         }
-        let ext: HashMap<&String, u64> = inner.extension_seen.iter().map(|(k, v)| (k, v.elapsed().as_secs())).collect();
-        let sessions: Vec<_> = inner.state.sessions.iter().filter(|s| s.ends_at > now.utc).collect();
-        let practice = inner.config.settings.practice_mode_until.is_some_and(|t| now.utc < t);
+        let ext: HashMap<&String, u64> = inner
+            .extension_seen
+            .iter()
+            .map(|(k, v)| (k, v.elapsed().as_secs()))
+            .collect();
+        let sessions: Vec<_> = inner
+            .state
+            .sessions
+            .iter()
+            .filter(|s| s.ends_at > now.utc)
+            .collect();
+        let practice = inner
+            .config
+            .settings
+            .practice_mode_until
+            .is_some_and(|t| now.utc < t);
         Ok(json!({
             "version": VERSION,
             "now": now.utc,
@@ -236,7 +263,10 @@ impl App {
         // Fields the agent owns.
         new.version = focusfort_core::model::CONFIG_VERSION;
         new.settings.practice_mode_until = inner.config.settings.practice_mode_until;
-        if new.settings.onboarded && !inner.config.settings.onboarded && new.settings.practice_mode_until.is_none() {
+        if new.settings.onboarded
+            && !inner.config.settings.onboarded
+            && new.settings.practice_mode_until.is_none()
+        {
             new.settings.practice_mode_until = Some(now.utc + Duration::days(PRACTICE_DAYS));
         }
         lock::validate_update(&inner.config, &new, &inner.state, now.utc)?;
@@ -266,7 +296,12 @@ impl App {
 
     // ----- Sessions -----
 
-    pub fn start_session(&self, block_list_id: &str, minutes: i64, lock_kind: LockKind) -> ApiResult {
+    pub fn start_session(
+        &self,
+        block_list_id: &str,
+        minutes: i64,
+        lock_kind: LockKind,
+    ) -> ApiResult {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
@@ -304,14 +339,27 @@ impl App {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
-        let idx = inner.state.sessions.iter().position(|s| s.id == id).ok_or_else(|| ApiError::not_found("session"))?;
+        let idx = inner
+            .state
+            .sessions
+            .iter()
+            .position(|s| s.id == id)
+            .ok_or_else(|| ApiError::not_found("session"))?;
         let session = inner.state.sessions[idx].clone();
         let proof = match (&session.lock, answer) {
             (LockKind::RandomText { .. }, Some(a)) => {
                 let purpose = format!("session:{id}");
                 match &inner.state.challenge {
-                    Some(c) if challenge::verify(c, &purpose, a, now.utc) => UnlockProof::ChallengeSolved,
-                    _ => return Err(ApiError::new(409, "challenge_failed", "challenge text does not match")),
+                    Some(c) if challenge::verify(c, &purpose, a, now.utc) => {
+                        UnlockProof::ChallengeSolved
+                    }
+                    _ => {
+                        return Err(ApiError::new(
+                            409,
+                            "challenge_failed",
+                            "challenge text does not match",
+                        ))
+                    }
                 }
             }
             (LockKind::Restart, _) if self.boot_time > session.started_at => UnlockProof::Restarted,
@@ -346,7 +394,13 @@ impl App {
         let inner = &mut *g;
         let now = self.now(inner);
         let length = if let Some(id) = purpose.strip_prefix("session:") {
-            match inner.state.sessions.iter().find(|s| s.id == id).map(|s| &s.lock) {
+            match inner
+                .state
+                .sessions
+                .iter()
+                .find(|s| s.id == id)
+                .map(|s| &s.lock)
+            {
                 Some(LockKind::RandomText { length }) => *length,
                 _ => return Err(ApiError::bad_request("session has no text challenge")),
             }
@@ -359,7 +413,8 @@ impl App {
             return Err(ApiError::bad_request("purpose"));
         };
         let c: Challenge = challenge::generate(length, purpose, now.utc);
-        let v = json!({ "id": c.id, "purpose": c.purpose, "text": c.text, "expires_at": c.expires_at });
+        let v =
+            json!({ "id": c.id, "purpose": c.purpose, "text": c.text, "expires_at": c.expires_at });
         inner.state.challenge = Some(c);
         self.save_state(inner)?;
         Ok(v)
@@ -378,19 +433,37 @@ impl App {
                 lock::validate_shape(&probe)?;
             }
             RequestKind::EndSession { session_id } => {
-                let s = inner.state.sessions.iter().find(|s| &s.id == session_id && s.ends_at > now.utc);
+                let s = inner
+                    .state
+                    .sessions
+                    .iter()
+                    .find(|s| &s.id == session_id && s.ends_at > now.utc);
                 if !s.is_some_and(|s| s.lock == LockKind::Partner) {
-                    return Err(ApiError::bad_request("only partner-locked sessions use requests"));
+                    return Err(ApiError::bad_request(
+                        "only partner-locked sessions use requests",
+                    ));
                 }
             }
             RequestKind::Uninstall => {}
         }
-        if inner.state.requests.iter().any(|r| r.is_open() && r.kind == kind) {
-            return Err(ApiError::new(409, "duplicate", "a request like this is already open"));
+        if inner
+            .state
+            .requests
+            .iter()
+            .any(|r| r.is_open() && r.kind == kind)
+        {
+            return Err(ApiError::new(
+                409,
+                "duplicate",
+                "a request like this is already open",
+            ));
         }
         // Partner-locked sessions always need the partner, whatever the protection level.
         let protection = match kind {
-            RequestKind::EndSession { .. } => Protection { level: ProtectionLevel::Partner, ..inner.config.protection.clone() },
+            RequestKind::EndSession { .. } => Protection {
+                level: ProtectionLevel::Partner,
+                ..inner.config.protection.clone()
+            },
             _ => inner.config.protection.clone(),
         };
         let r = Request::new(&protection, kind, reason, now.utc);
@@ -405,11 +478,24 @@ impl App {
         let inner = &mut *g;
         let now = self.now(inner);
         let purpose = format!("request:{id}");
-        let ok = inner.state.challenge.as_ref().is_some_and(|c| challenge::verify(c, &purpose, answer, now.utc));
+        let ok = inner
+            .state
+            .challenge
+            .as_ref()
+            .is_some_and(|c| challenge::verify(c, &purpose, answer, now.utc));
         if !ok {
-            return Err(ApiError::new(409, "challenge_failed", "challenge text does not match"));
+            return Err(ApiError::new(
+                409,
+                "challenge_failed",
+                "challenge text does not match",
+            ));
         }
-        let r = inner.state.requests.iter_mut().find(|r| r.id == id).ok_or_else(|| ApiError::not_found("request"))?;
+        let r = inner
+            .state
+            .requests
+            .iter_mut()
+            .find(|r| r.id == id)
+            .ok_or_else(|| ApiError::not_found("request"))?;
         r.challenge_solved(now.utc);
         let v = json!(r);
         inner.state.challenge = None;
@@ -421,7 +507,12 @@ impl App {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
-        let r = inner.state.requests.iter_mut().find(|r| r.id == id).ok_or_else(|| ApiError::not_found("request"))?;
+        let r = inner
+            .state
+            .requests
+            .iter_mut()
+            .find(|r| r.id == id)
+            .ok_or_else(|| ApiError::not_found("request"))?;
         r.cancel(now.utc);
         self.save_state(inner)?;
         Ok(json!({ "ok": true }))
@@ -432,9 +523,18 @@ impl App {
         let mut g = self.lock();
         let inner = &mut *g;
         self.now(inner);
-        let idx = inner.state.requests.iter().position(|r| r.id == id).ok_or_else(|| ApiError::not_found("request"))?;
+        let idx = inner
+            .state
+            .requests
+            .iter()
+            .position(|r| r.id == id)
+            .ok_or_else(|| ApiError::not_found("request"))?;
         if inner.state.requests[idx].status != RequestStatus::Approved {
-            return Err(ApiError::new(409, "not_approved", "request is not approved"));
+            return Err(ApiError::new(
+                409,
+                "not_approved",
+                "request is not approved",
+            ));
         }
         match inner.state.requests[idx].kind.clone() {
             RequestKind::ChangeProtection { new } => {
@@ -445,7 +545,9 @@ impl App {
                 inner.state.sessions.retain(|s| s.id != session_id);
             }
             RequestKind::Uninstall => {
-                return Ok(json!({ "ok": true, "message": "approved: run the uninstaller within 24 hours" }));
+                return Ok(
+                    json!({ "ok": true, "message": "approved: run the uninstaller within 24 hours" }),
+                );
             }
         }
         inner.state.requests[idx].status = RequestStatus::Used;
@@ -481,7 +583,9 @@ impl App {
     pub fn extension_policy(&self, family: &str) -> ApiResult {
         let mut g = self.lock();
         let inner = &mut *g;
-        inner.extension_seen.insert(family.to_string(), Instant::now());
+        inner
+            .extension_seen
+            .insert(family.to_string(), Instant::now());
         let (_, policy) = self.advance(inner);
         Ok(json!({
             "blocked_sites": policy.blocked_sites,
@@ -497,11 +601,19 @@ impl App {
 
     /// The extension reports the URL of the focused tab every few seconds.
     /// Returns whether it must be blocked now (e.g. the daily allowance ran out).
-    pub fn extension_activity(&self, family: &str, url: &str, seconds: u64, opened: bool) -> ApiResult {
+    pub fn extension_activity(
+        &self,
+        family: &str,
+        url: &str,
+        seconds: u64,
+        opened: bool,
+    ) -> ApiResult {
         let seconds = seconds.min(60);
         let mut g = self.lock();
         let inner = &mut *g;
-        inner.extension_seen.insert(family.to_string(), Instant::now());
+        inner
+            .extension_seen
+            .insert(family.to_string(), Instant::now());
         let (now, policy) = self.advance(inner);
         let day = now.day();
         let blocked = policy.url_blocked(url);
@@ -510,13 +622,23 @@ impl App {
             if blocked {
                 engine::record_stat(&mut inner.state, &day, &format!("site:{host}"), 0, opened);
             } else {
-                let ids: Vec<String> = engine::limits_for_url(&inner.config, url).iter().map(|l| l.id.clone()).collect();
+                let ids: Vec<String> = engine::limits_for_url(&inner.config, url)
+                    .iter()
+                    .map(|l| l.id.clone())
+                    .collect();
                 engine::record_usage(&mut inner.state, &ids, &day, seconds, opened);
-                engine::record_stat(&mut inner.state, &day, &format!("site:{host}"), seconds, false);
+                engine::record_stat(
+                    &mut inner.state,
+                    &day,
+                    &format!("site:{host}"),
+                    seconds,
+                    false,
+                );
             }
             inner.state_dirty = true;
         }
-        let blocked_now = blocked || engine::effective_policy(&inner.config, &inner.state, now).url_blocked(url);
+        let blocked_now =
+            blocked || engine::effective_policy(&inner.config, &inner.state, now).url_blocked(url);
         Ok(json!({ "blocked": blocked_now }))
     }
 }
