@@ -4,3 +4,18 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+chrono.workspace = true
+focusfort-core = { version = "0.1.0", path = "../core" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sysinfo = "0.39.6"
+tiny_http = "0.12.0"
+ureq = { version = "3.4.2", default-features = false, features = ["json", "gzip"] }
+
+[target."cfg(windows)".dependencies]
+windows-service = "0.8.1"
+
+[features]
+default = ["tls"]
+# HTTPS to the sync backend. Disable (`--no-default-features`) to cross-check without a C toolchain.
+tls = ["ureq/rustls"]

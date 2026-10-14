@@ -140,6 +140,11 @@ pub struct Settings {
     pub backend_url: String,
     /// Practice mode: during the first days, locks are capped in length.
     pub practice_mode_until: Option<DateTime<Utc>>,
+    /// Partial blocking done by the browser extension, e.g. `youtube_shorts`,
+    /// `youtube_recommendations`, `facebook_feed`, `instagram_reels`.
+    pub distraction_filters: Vec<String>,
+    /// Completed onboarding.
+    pub onboarded: bool,
 }
 
 impl Default for Settings {
@@ -150,6 +155,8 @@ impl Default for Settings {
             require_browser_extension: false,
             backend_url: String::new(),
             practice_mode_until: None,
+            distraction_filters: Vec::new(),
+            onboarded: false,
         }
     }
 }

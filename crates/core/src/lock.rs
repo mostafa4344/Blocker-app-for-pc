@@ -281,8 +281,10 @@ mod tests {
 
     #[test]
     fn protection_cannot_be_lowered_directly() {
-        let mut old = Config::default();
-        old.protection = Protection { level: ProtectionLevel::Committed, ..Default::default() };
+        let old = Config {
+            protection: Protection { level: ProtectionLevel::Committed, ..Default::default() },
+            ..Default::default()
+        };
         let new = Config::default();
         assert_eq!(validate_update(&old, &new, &State::default(), Utc::now()), Err(PolicyError::ProtectionRequiresRequest));
     }
