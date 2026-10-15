@@ -112,7 +112,7 @@ export async function saveConfig(mutate, okMsg = t("saved")) {
     if (okMsg) toast(okMsg);
     return true;
   } catch (e) {
-    toast(errMsg(e), true);
+    reportError(e);
     return e;
   }
 }
@@ -126,9 +126,28 @@ export async function act(fn, okMsg) {
     if (okMsg) toast(okMsg);
     return r ?? true;
   } catch (e) {
-    toast(errMsg(e), true);
+    reportError(e);
     return null;
   }
+}
+
+/** Shows a paywall for payment-required errors, otherwise a toast. */
+function reportError(e) {
+  if (e?.code === "payment_required") showPaywall();
+  else toast(errMsg(e), true);
+}
+
+export function showPaywall() {
+  openModal(
+    `<h2>${t("paywall_title")}</h2><p>${t("paywall_body")}</p>
+     <div class="actions"><button class="btn" data-close>${t("close")}</button><button class="btn primary" id="go">${t("get_premium")}</button></div>`,
+    (m) =>
+      $("#go", m).addEventListener("click", () => {
+        closeModal();
+        S.page = "premium";
+        S.render();
+      }),
+  );
 }
 
 // ---------- modal ----------

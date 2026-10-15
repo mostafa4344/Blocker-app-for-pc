@@ -1,11 +1,22 @@
-// Protection (uninstall/settings) and general settings.
-import { S, $, $$, t, num, esc, api, act, cfg, clone, fmtTime, openModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
+// Protection (uninstall/settings), general settings, and the Premium/account page.
+import { S, $, $$, t, num, esc, api, act, cfg, clone, fmtTime, openModal, closeModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
 
-const LEVELS = ["off", "mindful", "committed", "partner"];
+const LEVELS = ["off", "mindful", "committed"];
 const FILTERS = ["youtube_shorts", "youtube_recommendations", "youtube_comments", "facebook_feed", "facebook_reels", "instagram_reels", "x_feed", "linkedin_feed"];
 
+// Time-delay options, in hours. The last one (~100 years) is shown as "unlimited".
+const UNLIMITED_HOURS = 876000;
+const DELAY_OPTIONS = [24, 72, 168, 336, 720, 2160, 8760, UNLIMITED_HOURS];
+
+function delayLabel(hours) {
+  if (hours >= UNLIMITED_HOURS) return t("delay_unlimited");
+  if (hours % 24 === 0) return t("delay_days", { n: num(hours / 24) });
+  return t("delay_hours", { n: num(hours) });
+}
+
 function levelDesc(level, p) {
-  return t(`level_${level}_desc`, { hours: num(p.cooldown_hours), days: num(p.partner_timeout_days) });
+  if (level === "committed") return t("level_committed_desc", { hours: delayLabel(p.cooldown_hours) });
+  return t(`level_${level}_desc`, { hours: delayLabel(p.cooldown_hours), days: num(p.partner_timeout_days) });
 }
 
 /** Stricter (or equal) settings apply directly; anything looser becomes a request. */
@@ -25,7 +36,6 @@ function requestRow(r) {
   if (r.status === "approved" && r.kind.type !== "uninstall") actions.push(`<button class="btn small primary" data-apply="${esc(r.id)}">${t("apply")}</button>`);
   if (["needs_challenge", "pending", "approved"].includes(r.status)) actions.push(`<button class="btn small" data-cancel="${esc(r.id)}">${t("cancel")}</button>`);
   const info = [];
-  if (r.status === "pending" && r.needs_partner) info.push(t("waiting_partner"));
   if (r.status === "pending" && r.available_at) info.push(`${t("available_at")}: ${fmtTime(r.available_at)}`);
   if (r.status === "approved" && r.kind.type === "uninstall") info.push(t("uninstall_ready"));
   const badge = r.status === "approved" ? "ok" : r.status === "denied" ? "danger" : "";
@@ -36,6 +46,8 @@ function requestRow(r) {
 export function renderProtection(main) {
   const p = cfg().protection;
   const reqs = S.status.requests.slice().reverse();
+  // Make sure the current cooldown is selectable even if it is a custom value.
+  const opts = DELAY_OPTIONS.includes(p.cooldown_hours) ? DELAY_OPTIONS : [p.cooldown_hours, ...DELAY_OPTIONS];
   main.innerHTML = `
     <div class="page-head"><div><h1>${t("protection_title")}</h1><p class="muted">${t("protection_intro")}</p></div></div>
     <div class="stack">
@@ -46,13 +58,9 @@ export function renderProtection(main) {
         </div>`).join("")}</div>
 
       <section class="card stack">
-        <div class="grid two">
-          <label>${t("cooldown_hours")}<select id="p-cool">${[24, 48, 72].map((h) => `<option value="${h}" ${p.cooldown_hours === h ? "selected" : ""}>${num(h)}</option>`).join("")}</select></label>
-          <label>${t("partner_timeout")}<input type="number" id="p-timeout" min="1" max="30" value="${p.partner_timeout_days}"></label>
-          <label>${t("partner_name")}<input type="text" id="p-name" value="${esc(p.partner?.name ?? "")}"></label>
-          <label>${t("partner_email")}<input type="email" id="p-email" value="${esc(p.partner?.email ?? "")}"></label>
-        </div>
-        <label class="check"><input type="checkbox" id="p-tamper" ${p.tamper_alerts ? "checked" : ""}>${t("tamper_alerts")}</label>
+        <label>${t("delay_label")}
+          <select id="p-cool">${opts.map((h) => `<option value="${h}" ${p.cooldown_hours === h ? "selected" : ""}>${delayLabel(h)}</option>`).join("")}</select>
+        </label>
         <p class="hint">${t("protection_lower_note")}</p>
         <div><button class="btn primary" id="p-save">${t("save")}</button></div>
       </section>
@@ -64,23 +72,13 @@ export function renderProtection(main) {
       </section>
     </div>`;
 
-  const formProtection = (level) => {
-    const name = $("#p-name", main).value.trim();
-    const email = $("#p-email", main).value.trim();
-    return {
-      ...clone(p),
-      level,
-      cooldown_hours: Number($("#p-cool", main).value),
-      partner_timeout_days: Math.min(30, Math.max(1, Number($("#p-timeout", main).value) || 7)),
-      partner: email ? { name: name || email, email } : null,
-      tamper_alerts: $("#p-tamper", main).checked,
-    };
-  };
-  $$("[data-level]", main).forEach((b) => b.addEventListener("click", () => {
-    const next = formProtection(b.dataset.level);
-    if (next.level === "partner" && !next.partner) return toast(t("partner_email"), true);
-    applyProtection(next);
-  }));
+  const formProtection = (level) => ({
+    ...clone(p),
+    level,
+    cooldown_hours: Number($("#p-cool", main).value),
+    partner: null,
+  });
+  $$("[data-level]", main).forEach((b) => b.addEventListener("click", () => applyProtection(formProtection(b.dataset.level))));
   $("#p-save", main).addEventListener("click", () => applyProtection(formProtection(p.level)));
   $("#u-req", main).addEventListener("click", () => act(() => api("POST", "/api/requests", { kind: { type: "uninstall" }, reason: $("#u-reason", main).value }), t("saved")));
   $$("[data-cancel]", main).forEach((b) => b.addEventListener("click", () => act(() => api("POST", `/api/requests/${b.dataset.cancel}/cancel`))));
@@ -100,36 +98,100 @@ export function renderProtection(main) {
   }));
 }
 
+// ---------- Premium / account ----------
+
+function statusBadge(st) {
+  const cls = st === "premium" ? "ok" : st === "trial" ? "" : "danger";
+  return `<span class="badge ${cls}">${t(`st_${st}`)}</span>`;
+}
+
+export function activateModal() {
+  openModal(
+    `<h2>${t("activate_title")}</h2><p class="muted">${t("activate_help")}</p>
+     <label>${t("activate_code")}<input type="text" id="code" autocomplete="off" placeholder="PREMIUM-..."></label>
+     <p class="hint">${t("buy_help")}</p>
+     <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="go">${t("activate_btn")}</button></div>`,
+    (m) => $("#go", m).addEventListener("click", async () => {
+      const code = $("#code", m).value.trim();
+      if (!code) return;
+      if (await act(() => api("POST", "/api/license/activate", { code }), t("activated"))) closeModal();
+    }),
+  );
+}
+
+export function renderLicense(main) {
+  const lic = S.status.license;
+  const st = lic.status.state;
+  const until = lic.premium_until ? fmtTime(lic.premium_until) : t("premium_lifetime");
+  main.innerHTML = `
+    <div class="page-head"><h1>${t("license_title")}</h1></div>
+    <div class="stack">
+      <section class="card stack">
+        <div class="row between"><h2>${t("license_status_label")}</h2>${statusBadge(st)}</div>
+        ${st === "trial" ? `<p>${t("trial_days_left", { days: num(lic.status.days_left) })}</p>` : ""}
+        ${st === "premium" ? `<p>${t("premium_active")} · ${t("premium_until_label")}: ${until}</p>` : ""}
+        ${st === "expired" ? `<p class="muted">${t("trial_expired")}</p>` : ""}
+        ${st === "locked_offline" ? `<p class="muted">${t("locked_offline")}</p>` : ""}
+        ${lic.last_checked ? `<small>${t("last_checked_label")}: ${fmtTime(lic.last_checked)}</small>` : ""}
+        ${lic.last_error ? `<small class="badge danger">${esc(lic.last_error)}</small>` : ""}
+        <div class="row">
+          <button class="btn primary" id="activate">${t("get_premium")}</button>
+          <button class="btn" id="refresh">${t("refresh_license")}</button>
+        </div>
+      </section>
+      <section class="card stack"><h2>${t("buy_title")}</h2><p class="muted">${t("buy_help")}</p></section>
+    </div>`;
+  $("#activate", main).addEventListener("click", activateModal);
+  $("#refresh", main).addEventListener("click", () => act(() => api("POST", "/api/license/refresh"), t("saved")));
+}
+
+// ---------- Settings ----------
+
 export function renderSettings(main) {
   const st = cfg().settings;
-  const dev = S.status.device;
+  const lic = S.status.license;
+  const browsers = S.status.browsers;
+  const nice = (name) => name.replace(/\b\w/g, (c) => c.toUpperCase());
   main.innerHTML = `
     <div class="page-head"><h1>${t("settings_title")}</h1></div>
     <div class="stack">
-      
       <section class="card stack">
         <label>${t("language")}<select id="s-lang"><option value="bn" ${st.language === "bn" ? "selected" : ""}>বাংলা</option><option value="en" ${st.language === "en" ? "selected" : ""}>English</option></select></label>
         <label>${t("goal")}<input type="text" id="s-goal" maxlength="140" value="${esc(st.goal)}" placeholder="${esc(t("goal_placeholder"))}"></label>
-        <label class="check"><input type="checkbox" id="s-ext" ${st.require_browser_extension ? "checked" : ""}>${t("require_ext")}</label>
       </section>
+
+      <section class="card stack">
+        <h2>${t("browsers_title")}</h2>
+        <label class="check"><input type="checkbox" id="s-ext" ${st.require_browser_extension ? "checked" : ""}>${t("require_ext")}</label>
+        <label class="check"><input type="checkbox" id="s-unsup" ${st.block_unsupported_browsers ? "checked" : ""}><span>${t("block_unsupported")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
+        <div><strong>${t("supported_browsers")}</strong><div class="chips">${browsers.supported.map((b) => `<span class="badge ok">${esc(nice(b))}</span>`).join("")}</div></div>
+        <div><strong>${t("unsupported_browsers")}</strong><div class="chips">${browsers.unsupported.map((b) => `<span class="badge">${esc(nice(b))}</span>`).join("")}</div></div>
+      </section>
+
       <section class="card stack">
         <h2>${t("filters")}</h2>
         ${FILTERS.map((f) => `<label class="check"><input type="checkbox" data-filter="${f}" ${st.distraction_filters.includes(f) ? "checked" : ""}>${t(`f_${f}`)}</label>`).join("")}
       </section>
-      <section class="card stack">
-        <label>${t("backend_url")}<span class="hint">${t("backend_hint")}</span><input type="url" id="s-backend" value="${esc(st.backend_url)}" placeholder="https://"></label>
-        ${dev.last_sync_ok ? `<span class="badge ok">${t("sync_ok")}: ${fmtTime(dev.last_sync_ok)}</span>` : ""}
-        ${dev.last_error ? `<span class="badge danger">${t("sync_error")}: ${esc(dev.last_error)}</span>` : ""}
-      </section>
+
       <div><button class="btn primary" id="s-save">${t("save")}</button></div>
+
+      <details class="card stack"><summary>${t("backend_url")}</summary>
+        <label>${t("backend_url")}<span class="hint">${t("backend_hint")}</span><input type="url" id="s-backend" value="${esc(st.backend_url)}" placeholder="https://"></label>
+        <label>${t("backend_key_label")}<input type="text" id="s-backend-key" value="${esc(st.backend_key)}"></label>
+        ${lic.last_checked ? `<span class="badge ok">${t("last_checked_label")}: ${fmtTime(lic.last_checked)}</span>` : ""}
+        ${lic.last_error ? `<span class="badge danger">${esc(lic.last_error)}</span>` : ""}
+      </details>
+
       <section class="card stack"><h2>${t("extension_title")}</h2><p class="muted">${t("extension_help")}</p></section>
-      <p class="muted">ContentGuard v${esc(S.status.version)}</p>
+      <p class="muted">Content Guard v${esc(S.status.version)}</p>
     </div>`;
   $("#s-save", main).addEventListener("click", () => saveConfig((c) => {
     c.settings.language = $("#s-lang", main).value;
     c.settings.goal = $("#s-goal", main).value.trim();
     c.settings.require_browser_extension = $("#s-ext", main).checked;
+    c.settings.block_unsupported_browsers = $("#s-unsup", main).checked;
     c.settings.distraction_filters = $$("[data-filter]", main).filter((x) => x.checked).map((x) => x.dataset.filter);
     c.settings.backend_url = $("#s-backend", main).value.trim();
+    c.settings.backend_key = $("#s-backend-key", main).value.trim();
   }));
 }

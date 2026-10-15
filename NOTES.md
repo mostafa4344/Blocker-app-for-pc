@@ -67,3 +67,36 @@
 4. Fortress setup wizard (Standard account গাইড)।
 5. Foreground app tracking, Pomodoro, calendar।
 6. Mobile companion app (partner-এর জন্য approve করার সুবিধা)।
+
+---
+
+# আপডেট — ১৫ অক্টোবর ২০২৬ (দ্বিতীয় ধাপ)
+
+আপনার নতুন নির্দেশ অনুযায়ী বড় পরিবর্তন করা হয়েছে।
+
+## নতুন সিদ্ধান্ত ও কাজ
+
+| বিষয় | যা করা হয়েছে |
+|---|---|
+| **নাম** | পুরো প্রজেক্ট **Content Guard**-এ rename করা হয়েছে (crate, binary, service, env var `CONTENTGUARD_*`, API header `X-ContentGuard`, UI সব)। |
+| **Email/partner** | বাদ দেওয়া হয়েছে। Resend/email দরকার নেই। পুরনো Node email backend সরানো হয়েছে। Partner protection level আর UI থেকে সরানো হয়েছে; এখন সুরক্ষা = Off / সচেতন / প্রতিশ্রুতিবদ্ধ (time-delay)। |
+| **Time delay unlimited** | Committed (time-delay) এখন ১ দিন থেকে ৩০/৯০/৩৬৫ দিন, এমনকি **"আনলিমিটেড"** পর্যন্ত বেছে নেওয়া যায়। (আনলিমিটেড = কারিগরিভাবে ~১০০ বছর, নিচের ⚠️ দ্রষ্টব্য দেখুন।) |
+| **Supabase** | আপনার দেওয়া URL ও publishable key বিল্ট-ইন ডিফল্ট হিসেবে বসানো হয়েছে (`crates/agent/src/license.rs`)। publishable key client-এ রাখা নিরাপদ। `supabase/migrations/` -এ লাইসেন্সিং schema ও RPC (register_device, get_license, redeem_code) আছে — আসল Postgres-এ চালিয়ে যাচাই করা হয়েছে। |
+| **Freemium (trial → premium)** | ৪ দিনের ফ্রি ট্রায়াল, তারপর Premium লাগবে। ট্রায়াল server-side (install_id দিয়ে) ট্র্যাক হয় যাতে ডেটা মুছে reset করা কঠিন হয়। ট্রায়াল শেষ হলে নতুন ব্লক যোগ/জোরদার করতে Premium লাগে (402 paywall), কিন্তু **আগের ব্লক চলতেই থাকে** আর ব্লক কমানো সবসময় যায়। অফলাইনে ১৪ দিন grace, তারপর Premium আবার যাচাই করতে হয়। কোড দিয়ে Premium চালু হয় (`redeem_code`); পেমেন্ট webhook পরে যুক্ত হবে। |
+| **Browser supported/unsupported** | `SUPPORTED_BROWSERS` (Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox, LibreWolf… — extension চলে, keyword ও adult স্ক্যান হয়) ও `UNSUPPORTED_BROWSERS` (Safari, Pale Moon, qutebrowser, Falkon, DuckDuckGo browser… — স্ক্যান অসম্ভব) তালিকা। Settings-এ দেখা যায়। **"unsupported ব্রাউজার বন্ধ করে দিন"** option চালু করলে ব্লক চলাকালীন ওই ব্রাউজারগুলো বন্ধ হয়ে যায়। |
+| **লোকাল mock backend** | `backend/` এখন Supabase-compatible লাইসেন্স mock (একই RPC path)। এটা দিয়ে ট্রায়াল→Premium পুরো প্রবাহ container-এ টেস্ট করা হয়েছে। |
+
+## যা টেস্ট হয়েছে (এই container-এ)
+- Rust: ৪০টি (core ৩১ + agent ৯, licensing সহ)। Extension ৪, backend mock ৩। সব pass।
+- clippy (Linux + Windows + macOS cross-check) পরিষ্কার।
+- Supabase SQL আসল Postgres-এ চালিয়ে register→trial→redeem→premium→expired যাচাই।
+- Agent + mock backend end-to-end: ট্রায়ালে ব্লক যোগ হয়, ট্রায়াল শেষে add → **402 paywall**, ব্লক কমানো তখনও কাজ করে, কোড দিয়ে Premium → আবার সব খোলে, ব্যবহৃত কোড আবার চলে না।
+- UI (Playwright): Premium, Settings (browser তালিকা সহ), Protection (time-delay সহ) — কোনো JS error নেই।
+
+## ⚠️ গুরুত্বপূর্ণ সতর্কতা ও আপনার সিদ্ধান্ত
+1. **"আমি আপনাকে PC-তে connect করেছি" — এই session থেকে আপনার আসল PC-তে পৌঁছানো যায়নি।** এটা একটা Linux ক্লাউড container; এখানে কোনো remote device যুক্ত দেখা যায়নি। তাই আমি Windows PC-তে install করতে পারিনি — শুধু container-এ build ও trial করেছি। আপনার PC-তে চালাতে: CI থেকে `Content Guard-windows` artifact নামিয়ে `install.ps1` চালান (Administrator)। অথবা Remote Control যুক্ত করলে আমি সরাসরি চালাতে পারব (settings → Remote Control)।
+2. **"আনলিমিটেড time delay" ও "Premium কিনতে বাধ্য করা" — আইনি/নৈতিক ঝুঁকি।** কাউকে একদম বের হতে না দেওয়া, বা টাকা না দিলে নিজের PC-র নিয়ন্ত্রণ ফিরে না পাওয়া — এটা antivirus/Windows "malware/PUA" হিসেবে ধরতে পারে এবং app store/পেমেন্ট প্রসেসর বাতিল করতে পারে। তাই আমি রেখেছি: আনলিমিটেড হলেও কারিগরি সীমা ~১০০ বছর (চিরস্থায়ী bug এড়াতে), আর Premium শেষ হলেও ব্লক *কমানো* ও uninstall-request সবসময় চালু থাকে। ১০ কোটি ব্যবহারকারীর লক্ষ্য হলে এই ভারসাম্য জরুরি। আপনি চাইলে আরও কড়া করা যায়, কিন্তু ঝুঁকি বাড়বে — সিদ্ধান্ত আপনার।
+3. **Trial-reset দুর্বলতা:** এখন `install_id` শুধু `license.json`-এ থাকে; ফাইল মুছলে নতুন ট্রায়াল পাওয়া যেতে পারে। শক্ত করতে `install_id` একটা আলাদা স্থিতিশীল জায়গায় (registry/hidden file) রাখতে হবে — পরের ধাপ।
+4. **Supabase migration আপনাকে একবার apply করতে হবে:** `supabase db push` (অথবা SQL editor-এ `migrations/20261015000000_licensing.sql` + `seed.sql`)। নইলে লাইসেন্স সার্ভার কাজ করবে না (app তখন শুধু লোকাল ট্রায়ালে চলবে)।
+5. **পেমেন্ট এখনো যুক্ত হয়নি।** এখন `redeem_code` দিয়ে Premium (টেস্ট কোড: PREMIUM-LIFETIME, PREMIUM-30D, PREMIUM-365D)। bKash/Nagad/কার্ড যোগ করতে একটা পেমেন্ট webhook দরকার যেটা কেনার পর `codes` টেবিলে কোড বসাবে বা সরাসরি `accounts.plan='premium'` করবে। কোন পেমেন্ট মাধ্যম চান, জানালে যোগ করব।
+6. **publishable key টি repo-তে আছে** (ডিফল্ট হিসেবে)। এটা publishable বলেই শেয়ারযোগ্য, কিন্তু আসল নিরাপত্তা নির্ভর করে RLS + RPC-র উপর (সেভাবেই করা হয়েছে: anon key শুধু RPC চালাতে পারে, টেবিল সরাসরি পড়তে/লিখতে পারে না)।

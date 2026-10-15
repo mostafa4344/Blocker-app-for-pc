@@ -105,6 +105,12 @@ impl App {
         let state: State = store.load(STATE_FILE)?;
         let mut license: License = store.load(LICENSE_FILE)?;
         license.ensure_install_id();
+        // Start the trial immediately (and persist it) so the app is usable on
+        // first run before the backend is reached; the server corrects it on sync.
+        if license.trial_started.is_none() {
+            license.trial_started = Some(Utc::now());
+            let _ = store.save(LICENSE_FILE, &license);
+        }
         let clock = TrustedClock::new(Utc::now(), state.trusted_now);
         let boot_time = Utc
             .timestamp_opt(sysinfo::System::boot_time() as i64, 0)

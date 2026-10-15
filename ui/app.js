@@ -2,7 +2,7 @@
 import { S, $, $$, t, num, esc, api, cfg, clone, refresh, openModal, closeModal, modalOpen, updateCountdowns, toast, errMsg } from "/core.js";
 import { renderHome } from "/home.js";
 import { renderLists, renderSchedules, renderLimits } from "/editors.js";
-import { renderProtection, renderSettings } from "/protection.js";
+import { renderProtection, renderSettings, renderLicense } from "/protection.js";
 
 const PAGES = [
   ["home", "🏠", "nav_home", renderHome],
@@ -10,8 +10,23 @@ const PAGES = [
   ["schedules", "🗓️", "nav_schedules", renderSchedules],
   ["limits", "⏳", "nav_limits", renderLimits],
   ["protection", "🛡️", "nav_protection", renderProtection],
+  ["premium", "⭐", "nav_premium", renderLicense],
   ["settings", "⚙️", "nav_settings", renderSettings],
 ];
+
+/** A persistent banner for trial countdown / expiry, shown on every page. */
+function licenseBanner() {
+  const lic = S.status.license;
+  const st = lic.status.state;
+  if (st === "premium") return "";
+  const to = `<button class="btn small" data-page="premium">${t("get_premium")}</button>`;
+  if (st === "trial") {
+    return `<div class="banner info row between"><span>${t("trial_days_left", { days: num(lic.status.days_left) })}</span>${to}</div>`;
+  }
+  if (st === "expired") return `<div class="banner warn row between"><span>${t("trial_expired")}</span>${to}</div>`;
+  if (st === "locked_offline") return `<div class="banner danger row between"><span>${t("locked_offline")}</span><button class="btn small" data-page="premium">${t("refresh_license")}</button></div>`;
+  return "";
+}
 
 function renderNav() {
   $("#tagline").textContent = t("tagline");
@@ -35,6 +50,14 @@ function render() {
     return;
   }
   PAGES.find((p) => p[0] === S.page)[3](main);
+  // Prepend the license banner (not on the premium page itself).
+  if (S.page !== "premium") main.insertAdjacentHTML("afterbegin", licenseBanner());
+  $$("#main [data-page]").forEach((b) =>
+    b.addEventListener("click", () => {
+      S.page = b.dataset.page;
+      render();
+    }),
+  );
   updateCountdowns();
   if (!cfg().settings.onboarded && !S.onboarding) startOnboarding();
 }

@@ -13,8 +13,8 @@ Windows / macOS / Linux-এর জন্য একটা website, app আর soc
 | `crates/agent` | Background service: hosts file + app blocking, local API ও UI (`127.0.0.1:17345`), sync, Windows service |
 | `ui/` | বাংলা/English web UI (agent-এর ভেতরে embed করা) |
 | `extension/` | Chrome/Edge/Brave/Firefox extension (MV3): block page, path/keyword/allowlist, Shorts/Reels লুকানো |
-| `backend/` | অস্থায়ী partner/sync server (Node, কোনো dependency নেই, JSON file) |
-| `supabase/` | Supabase-এ সরানোর জন্য SQL schema ও নির্দেশনা |
+| `backend/` | Supabase-compatible লাইসেন্স mock (register/get/redeem), টেস্টের জন্য |
+| `supabase/` | লাইসেন্সিং schema + RPC (ট্রায়াল/Premium), Postgres-এ যাচাই করা |
 | `packaging/` | Windows/macOS/Linux install ও uninstall script |
 
 ## Development-এ চালানো
@@ -24,8 +24,8 @@ Windows / macOS / Linux-এর জন্য একটা website, app আর soc
 CONTENTGUARD_DATA_DIR=./.dev/data CONTENTGUARD_HOSTS_FILE=./.dev/hosts cargo run -p contentguard-agent -- run
 # তারপর browser-এ: http://127.0.0.1:17345/
 
-# Partner backend (ঐচ্ছিক)
-cd backend && npm start          # http://localhost:8787 → Settings-এ sync server হিসেবে দিন
+# লোকাল লাইসেন্স mock (ঐচ্ছিক, টেস্টের জন্য)
+cd backend && npm start          # http://localhost:8787 → Settings → সিক সার্ভারে দিন
 ```
 
 Extension লোড করা: `chrome://extensions` → Developer mode → Load unpacked → `extension/` ফোল্ডার।
