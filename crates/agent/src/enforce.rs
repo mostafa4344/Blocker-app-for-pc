@@ -13,6 +13,9 @@ use crate::hosts;
 use crate::paths;
 use crate::processes::{browser_family, browser_support, BrowserSupport, Watcher};
 
+/// Blocked host names, plus SafeSearch `(ip, host)` redirects, last written.
+type AppliedHosts = (Vec<String>, Vec<(String, String)>);
+
 pub const TICK: Duration = Duration::from_secs(2);
 /// A browser gets this long to connect its extension before it is closed
 /// (only when "require browser extension" is on and a block is active).
@@ -22,7 +25,8 @@ const SAVE_EVERY: Duration = Duration::from_secs(20);
 pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut watcher = Watcher::new();
     let hosts_path = paths::hosts_file();
-    let mut applied_hosts: Option<Vec<String>> = None;
+    let mut safe_search = crate::safesearch::SafeSearch::new();
+    let mut applied_hosts: Option<AppliedHosts> = None;
     let mut closed_pids: HashSet<sysinfo::Pid> = HashSet::new();
     let mut last_save = Instant::now();
     let mut last_tick = Instant::now();
@@ -37,14 +41,17 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             (now, policy, g.config.clone())
         };
 
-        // Websites (hosts file). Rewritten only when the list changes; a
-        // failed write is retried on the next tick.
+        // Websites (hosts file) + SafeSearch redirects. Rewritten only when the
+        // desired entries change; a failed write is retried on the next tick.
         let wanted = hosts::hosts_for(&policy.blocked_sites);
-        if applied_hosts.as_ref() != Some(&wanted) {
-            let result = hosts::apply(&hosts_path, &wanted)
+        let safe = safe_search
+            .entries(config.settings.force_safe_search, &wanted)
+            .to_vec();
+        if applied_hosts.as_ref() != Some(&(wanted.clone(), safe.clone())) {
+            let result = hosts::apply(&hosts_path, &wanted, &safe)
                 .map_err(|e| format!("{}: {e}", hosts_path.display()));
             if result.is_ok() {
-                applied_hosts = Some(wanted);
+                applied_hosts = Some((wanted, safe));
             }
             app.lock().hosts_status = result.map(|_| ());
         }

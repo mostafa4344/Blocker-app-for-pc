@@ -15,6 +15,7 @@ mod hosts;
 mod license;
 mod paths;
 mod processes;
+mod safesearch;
 #[cfg(windows)]
 mod service;
 mod sync;
@@ -114,7 +115,7 @@ fn main() {
                 1
             }
         },
-        "cleanup" => match hosts::apply(&paths::hosts_file(), &[]) {
+        "cleanup" => match hosts::apply(&paths::hosts_file(), &[], &[]) {
             Ok(_) => 0,
             Err(e) => {
                 eprintln!("contentguard: {e}");

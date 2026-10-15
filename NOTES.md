@@ -109,3 +109,23 @@
 - **Trial-reset শক্ত করা হয়েছে:** `install_id` এখন **মেশিন-ভিত্তিক** (Windows: MachineGuid, macOS: IOPlatformUUID, Linux: /etc/machine-id — salt দিয়ে hash)। অ্যাপের ডেটা ফোল্ডার পুরো মুছে ফেললেও একই `install_id` থাকে, তাই ডেটা মুছে নতুন ট্রায়াল পাওয়া যায় না (container-এ যাচাই করা হয়েছে)। শুধু OS reinstall করলে বদলায় — সেটাই সীমা।
 - **Premium দেওয়া (webhook/ম্যানুয়াল):** service-role দিয়ে `select admin_grant_premium('<device_id>', 30);` (null = আজীবন), অথবা `admin_create_code(...)` দিয়ে কোড বানিয়ে user-কে দিন। Device ID অ্যাপে **Settings → (advanced)** এ দেখা যায়।
 - পরের ধাপ (আমি করব): পেমেন্ট webhook template, আর আরও কিছু robustness।
+
+---
+
+# আপডেট — ১৫ অক্টোবর ২০২৬ (চতুর্থ ধাপ): Filtering architecture + SafeSearch
+
+**আর্কিটেকচার সিদ্ধান্ত (গবেষণার পর):** শুধু DNS নয় — স্তরে স্তরে (defense in depth):
+1. DNS category filtering (adult-এর মূল ভিত্তি — পরের ধাপ)
+2. Browser extension (keyword/path/SafeSearch — আছে)
+3. hosts + app block (আছে)
+4. পরে WFP/Network Extension দিয়ে system-wide
+— **MITM HTTPS proxy করা হবে না** (Net Nanny CVE-র মতো ঝুঁকি, antivirus malware ধরে, app ভাঙে)।
+
+**এই ধাপে করা হয়েছে — Force SafeSearch (hosts স্তরে, সব ব্রাউজারে):**
+- Settings → ব্রাউজার সুরক্ষা → "SafeSearch জোর করে চালু রাখুন"।
+- Google (forcesafesearch), YouTube (restrict), Bing (strict), DuckDuckGo (safe) — এদের "safe" endpoint-এর IP-তে hosts redirect। HTTPS ভাঙে না (safe endpoint আসল ডোমেইনের জন্য বৈধ cert দেয়), কোনো decryption নেই, malware-নিরাপদ।
+- DNS fail করলে Google/YouTube-এর জন্য documented fallback IP (216.239.38.120) ব্যবহার হয়; প্রতি ৬ ঘণ্টায় re-resolve।
+- কোনো সার্চ ইঞ্জিন পুরো block করা থাকলে SafeSearch pin বাদ যায় (block অগ্রাধিকার পায়)।
+- container-এ DNS বন্ধ থাকলেও fallback দিয়ে ২৫টি hosts entry লেখা যাচাই করা হয়েছে; ১৫টি agent test পাস।
+
+**পরের ধাপ (আমি করব):** DNS family-filter স্তর (agent থেকে family-safe DoH + DNS বদল আটকানো), তারপর WFP system-wide enforcement।

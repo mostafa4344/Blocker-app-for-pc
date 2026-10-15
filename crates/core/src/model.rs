@@ -139,6 +139,9 @@ pub struct Settings {
     /// While a block is active, close browsers that ContentGuard does not support
     /// (where keyword / content scanning cannot run), so they can't be used to bypass.
     pub block_unsupported_browsers: bool,
+    /// Force SafeSearch / Restricted Mode on the major search engines and YouTube
+    /// (always on, not only during blocks) via the hosts file.
+    pub force_safe_search: bool,
     /// Licensing / account backend base URL (Supabase project or a compatible
     /// server). Empty uses the built-in default.
     pub backend_url: String,
@@ -160,6 +163,7 @@ impl Default for Settings {
             goal: String::new(),
             require_browser_extension: false,
             block_unsupported_browsers: false,
+            force_safe_search: false,
             backend_url: String::new(),
             backend_key: String::new(),
             practice_mode_until: None,

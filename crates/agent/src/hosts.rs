@@ -40,8 +40,9 @@ pub fn hosts_for(sites: &[String]) -> Vec<String> {
 }
 
 /// Returns `content` with the managed section replaced by entries for `hosts`
-/// (or removed when `hosts` is empty).
-pub fn render(content: &str, hosts: &[String]) -> String {
+/// (blocked to 0.0.0.0) plus `safe` redirects (`host` -> `ip`, used for
+/// SafeSearch), or removes the section when both are empty.
+pub fn render(content: &str, hosts: &[String], safe: &[(String, String)]) -> String {
     let mut kept: Vec<&str> = Vec::new();
     let mut inside = false;
     for line in content.lines() {
@@ -69,12 +70,15 @@ pub fn render(content: &str, hosts: &[String]) -> String {
     if !out.is_empty() {
         out.push_str(nl);
     }
-    if !hosts.is_empty() {
+    if !hosts.is_empty() || !safe.is_empty() {
         out.push_str(nl);
         out.push_str(BEGIN);
         out.push_str(nl);
         for h in hosts {
             out.push_str(&format!("0.0.0.0 {h}{nl}:: {h}{nl}"));
+        }
+        for (ip, host) in safe {
+            out.push_str(&format!("{ip} {host}{nl}"));
         }
         out.push_str(END);
         out.push_str(nl);
@@ -83,13 +87,13 @@ pub fn render(content: &str, hosts: &[String]) -> String {
 }
 
 /// Writes the managed section if it differs. Returns whether the file changed.
-pub fn apply(path: &Path, hosts: &[String]) -> io::Result<bool> {
+pub fn apply(path: &Path, hosts: &[String], safe: &[(String, String)]) -> io::Result<bool> {
     let current = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(e),
     };
-    let next = render(&current, hosts);
+    let next = render(&current, hosts, safe);
     if next == current {
         return Ok(false);
     }
@@ -147,20 +151,29 @@ mod tests {
     #[test]
     fn render_preserves_user_lines() {
         let original = "127.0.0.1 localhost\n# my entry\n10.0.0.1 nas\n";
-        let with = render(original, &["a.com".into()]);
+        let with = render(original, &["a.com".into()], &[]);
         assert!(with.starts_with(original));
         assert!(with.contains("0.0.0.0 a.com"));
-        let again = render(&with, &["a.com".into()]);
+        let again = render(&with, &["a.com".into()], &[]);
         assert_eq!(again, with);
-        let removed = render(&with, &[]);
+        let removed = render(&with, &[], &[]);
         assert_eq!(removed, original);
     }
 
     #[test]
     fn render_keeps_crlf() {
         let original = "127.0.0.1 localhost\r\n";
-        let with = render(original, &["a.com".into()]);
+        let with = render(original, &["a.com".into()], &[]);
         assert!(with.contains("0.0.0.0 a.com\r\n"));
-        assert_eq!(render(&with, &[]), original);
+        assert_eq!(render(&with, &[], &[]), original);
+    }
+
+    #[test]
+    fn render_safe_search_entries() {
+        let original = "127.0.0.1 localhost\n";
+        let safe = vec![("216.239.38.120".to_string(), "www.google.com".to_string())];
+        let with = render(original, &[], &safe);
+        assert!(with.contains("216.239.38.120 www.google.com"));
+        assert_eq!(render(&with, &[], &[]), original);
     }
 }
