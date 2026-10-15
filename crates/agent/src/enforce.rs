@@ -11,7 +11,7 @@ use contentguard_core::matcher::normalize_app;
 use crate::app::App;
 use crate::hosts;
 use crate::paths;
-use crate::processes::{browser_family, Watcher};
+use crate::processes::{browser_family, browser_support, BrowserSupport, Watcher};
 
 pub const TICK: Duration = Duration::from_secs(2);
 /// A browser gets this long to connect its extension before it is closed
@@ -59,11 +59,12 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                 .map(|(k, v)| (k.clone(), v.elapsed().as_secs()))
                 .collect()
         };
+        let blocking = !policy.is_empty();
         let mut blocked_hits: Vec<String> = Vec::new();
         for p in &procs {
             let close_for_block = policy.app_blocked(&p.name);
             let close_for_missing_extension = config.settings.require_browser_extension
-                && !policy.is_empty()
+                && blocking
                 && browser_family(&p.name).is_some_and(|f| {
                     let seen_recently = ext_seen
                         .iter()
@@ -71,7 +72,11 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                     let running_for = now_epoch.saturating_sub(p.start_time);
                     !seen_recently && running_for > EXTENSION_GRACE_SECS
                 });
-            if (close_for_block || close_for_missing_extension)
+            // Browsers we cannot scan are a bypass route: close them while blocking.
+            let close_for_unsupported = config.settings.block_unsupported_browsers
+                && blocking
+                && browser_support(&p.name) == BrowserSupport::Unsupported;
+            if (close_for_block || close_for_missing_extension || close_for_unsupported)
                 && watcher.close(p.pid)
                 && closed_pids.insert(p.pid)
             {

@@ -233,6 +233,11 @@ struct NewChallenge {
 }
 
 #[derive(Deserialize)]
+struct Activate {
+    code: String,
+}
+
+#[derive(Deserialize)]
 struct NewRequest {
     kind: RequestKind,
     #[serde(default)]
@@ -292,6 +297,11 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
         }
         (Method::Post, ["api", "requests", id, "cancel"]) => app.cancel_request(id),
         (Method::Post, ["api", "requests", id, "apply"]) => app.apply_request(id),
+
+        (Method::Post, ["api", "license", "refresh"]) => app.refresh_license(),
+        (Method::Post, ["api", "license", "activate"]) => {
+            app.activate_premium(&parse::<Activate>(body)?.code)
+        }
         // Used by the uninstaller through `contentguard-agent uninstall-check`.
         (Method::Post, ["api", "uninstall", "consume"]) => {
             Ok(json!({ "allowed": app.uninstall_check()? }))

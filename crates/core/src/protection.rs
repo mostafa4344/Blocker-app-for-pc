@@ -11,6 +11,10 @@ use crate::model::{Protection, ProtectionLevel};
 pub const MINDFUL_WAIT_SECS: i64 = 60;
 /// How long an approved request can be used before it expires.
 pub const APPROVAL_VALID_HOURS: i64 = 24;
+/// Upper bound for the Committed cooldown (~100 years). The UI presents the
+/// largest option as "unlimited"; a finite bound is kept so a request can never
+/// become literally un-resolvable (see NOTES.md on the legal/anti-malware reason).
+pub const MAX_COOLDOWN_HOURS: u32 = 876_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -79,8 +83,11 @@ impl Request {
             }
             ProtectionLevel::Mindful => req.status = RequestStatus::NeedsChallenge,
             ProtectionLevel::Committed => {
-                req.available_at =
-                    Some(now + Duration::hours(protection.cooldown_hours.clamp(1, 168) as i64));
+                req.available_at = Some(
+                    now + Duration::hours(
+                        protection.cooldown_hours.clamp(1, MAX_COOLDOWN_HOURS) as i64
+                    ),
+                );
             }
             ProtectionLevel::Partner => {
                 req.needs_partner = protection.partner.is_some();

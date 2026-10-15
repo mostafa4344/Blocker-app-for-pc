@@ -133,11 +133,17 @@ pub struct Settings {
     pub language: String,
     /// Shown on the block page.
     pub goal: String,
-    /// Close browsers that do not have the ContentGuard extension connected
-    /// while a block is active.
+    /// Close supported browsers that do not have the ContentGuard extension
+    /// connected while a block is active (stops incognito / new-browser bypass).
     pub require_browser_extension: bool,
-    /// Base URL of the sync/partner backend; empty = offline only.
+    /// While a block is active, close browsers that ContentGuard does not support
+    /// (where keyword / content scanning cannot run), so they can't be used to bypass.
+    pub block_unsupported_browsers: bool,
+    /// Licensing / account backend base URL (Supabase project or a compatible
+    /// server). Empty uses the built-in default.
     pub backend_url: String,
+    /// Public (publishable / anon) API key for the licensing backend.
+    pub backend_key: String,
     /// Practice mode: during the first days, locks are capped in length.
     pub practice_mode_until: Option<DateTime<Utc>>,
     /// Partial blocking done by the browser extension, e.g. `youtube_shorts`,
@@ -153,7 +159,9 @@ impl Default for Settings {
             language: "bn".into(),
             goal: String::new(),
             require_browser_extension: false,
+            block_unsupported_browsers: false,
             backend_url: String::new(),
+            backend_key: String::new(),
             practice_mode_until: None,
             distraction_filters: Vec::new(),
             onboarded: false,

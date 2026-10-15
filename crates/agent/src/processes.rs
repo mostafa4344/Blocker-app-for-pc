@@ -65,16 +65,98 @@ impl BrowserFamily {
     }
 }
 
+/// Supported browsers: the ContentGuard extension runs here, so website,
+/// keyword and content (adult) scanning all work. Normalised executable names.
+pub const SUPPORTED_BROWSERS: &[&str] = &[
+    "chrome",
+    "google chrome",
+    "msedge",
+    "microsoft edge",
+    "brave",
+    "brave browser",
+    "opera",
+    "opera_gx",
+    "operagx",
+    "vivaldi",
+    "chromium",
+    "chromium-browser",
+    "yandex",
+    "arc",
+    "firefox",
+    "firefox-esr",
+    "librewolf",
+    "waterfox",
+    "zen",
+    "floorp",
+];
+
+/// Known browsers where the extension cannot run (no compatible WebExtension
+/// support, or a different extension model), so content scanning is impossible.
+/// When "block unsupported browsers" is on, these are closed while blocking.
+pub const UNSUPPORTED_BROWSERS: &[&str] = &[
+    "safari",
+    "palemoon",
+    "basilisk",
+    "seamonkey",
+    "iexplore",
+    "msie",
+    "qutebrowser",
+    "falkon",
+    "konqueror",
+    "epiphany",
+    "gnome-web",
+    "midori",
+    "otter",
+    "otter-browser",
+    "dillo",
+    "lynx",
+    "w3m",
+    "links",
+    "elinks",
+    "maxthon",
+    "ucbrowser",
+    "360se",
+    "360chrome",
+    "duckduckgo",
+    "min",
+    "colibri",
+    "wexond",
+    "netsurf",
+    "surf",
+    "badwolf",
+];
+
+/// How ContentGuard relates to a process that is a web browser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserSupport {
+    /// Extension works; `BrowserFamily` says which store/engine.
+    Supported(BrowserFamily),
+    /// A known browser we cannot scan.
+    Unsupported,
+    /// Not a browser we recognise.
+    NotBrowser,
+}
+
 pub fn browser_family(name: &str) -> Option<BrowserFamily> {
     match normalize_app(name).as_str() {
         "chrome" | "google chrome" | "msedge" | "microsoft edge" | "brave" | "brave browser"
-        | "opera" | "opera_gx" | "vivaldi" | "chromium" | "chromium-browser" | "yandex"
-        | "browser" | "arc" => Some(BrowserFamily::Chromium),
+        | "opera" | "opera_gx" | "operagx" | "vivaldi" | "chromium" | "chromium-browser"
+        | "yandex" | "arc" => Some(BrowserFamily::Chromium),
         "firefox" | "firefox-esr" | "librewolf" | "waterfox" | "zen" | "floorp" => {
             Some(BrowserFamily::Firefox)
         }
         _ => None,
     }
+}
+
+pub fn browser_support(name: &str) -> BrowserSupport {
+    if let Some(f) = browser_family(name) {
+        return BrowserSupport::Supported(f);
+    }
+    if UNSUPPORTED_BROWSERS.contains(&normalize_app(name).as_str()) {
+        return BrowserSupport::Unsupported;
+    }
+    BrowserSupport::NotBrowser
 }
 
 pub fn is_protected(name: &str) -> bool {
@@ -157,5 +239,20 @@ mod tests {
         assert!(is_protected("explorer.exe"));
         assert!(is_protected("C:\\Windows\\System32\\svchost.exe"));
         assert!(!is_protected("steam.exe"));
+    }
+
+    #[test]
+    fn support_classification() {
+        assert_eq!(
+            browser_support("chrome.exe"),
+            BrowserSupport::Supported(BrowserFamily::Chromium)
+        );
+        assert_eq!(
+            browser_support("Firefox"),
+            BrowserSupport::Supported(BrowserFamily::Firefox)
+        );
+        assert_eq!(browser_support("Safari.app"), BrowserSupport::Unsupported);
+        assert_eq!(browser_support("palemoon.exe"), BrowserSupport::Unsupported);
+        assert_eq!(browser_support("notepad.exe"), BrowserSupport::NotBrowser);
     }
 }

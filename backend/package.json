@@ -1,8 +1,8 @@
 {
-  "name": "contentguard-backend",
+  "name": "contentguard-license-mock",
   "version": "0.1.0",
   "private": true,
-  "description": "Temporary partner/sync backend for ContentGuard. Zero dependencies; JSON-file storage. To be moved to Supabase (see supabase/ and NOTES.md).",
+  "description": "Local, Supabase-compatible mock of the ContentGuard licensing RPCs (register_device, get_license, redeem_code). Zero dependencies, JSON storage. For development and testing; production uses the real Supabase project (see ../supabase).",
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {

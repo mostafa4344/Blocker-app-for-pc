@@ -8,7 +8,6 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use chrono::{DateTime, Duration, Local, TimeZone, Utc};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use contentguard_core::challenge::{self, Challenge};
@@ -20,34 +19,22 @@ use contentguard_core::presets::{self, PRESETS};
 use contentguard_core::protection::{Request, RequestKind, RequestStatus};
 use contentguard_core::store::Store;
 
+use crate::license::{self, License};
+use crate::processes::{SUPPORTED_BROWSERS, UNSUPPORTED_BROWSERS};
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CONFIG_FILE: &str = "config.json";
 const STATE_FILE: &str = "state.json";
-const DEVICE_FILE: &str = "device.json";
+const LICENSE_FILE: &str = "license.json";
 /// Length of the challenge for Mindful-level protection requests.
 const REQUEST_CHALLENGE_LENGTH: usize = 150;
 const PRACTICE_DAYS: i64 = 7;
 const STATS_KEEP_DAYS: i64 = 35;
 
-/// Link to the optional sync/partner backend.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct Device {
-    pub backend_url: String,
-    pub device_id: String,
-    pub device_secret: String,
-    /// Request ids already sent to the backend.
-    pub pushed_requests: Vec<String>,
-    pub settings_hash: String,
-    pub last_heartbeat: Option<DateTime<Utc>>,
-    pub last_sync_ok: Option<DateTime<Utc>>,
-    pub last_error: String,
-}
-
 pub struct Inner {
     pub config: Config,
     pub state: State,
-    pub device: Device,
+    pub license: License,
     pub clock: TrustedClock,
     last_tick: Instant,
     /// Browser family -> last time its extension reported in.
@@ -116,7 +103,8 @@ impl App {
     pub fn open(store: Store) -> io::Result<App> {
         let config: Config = store.load(CONFIG_FILE)?;
         let state: State = store.load(STATE_FILE)?;
-        let device: Device = store.load(DEVICE_FILE)?;
+        let mut license: License = store.load(LICENSE_FILE)?;
+        license.ensure_install_id();
         let clock = TrustedClock::new(Utc::now(), state.trusted_now);
         let boot_time = Utc
             .timestamp_opt(sysinfo::System::boot_time() as i64, 0)
@@ -127,7 +115,7 @@ impl App {
             inner: Mutex::new(Inner {
                 config,
                 state,
-                device,
+                license,
                 clock,
                 last_tick: Instant::now(),
                 extension_seen: HashMap::new(),
@@ -153,8 +141,33 @@ impl App {
         self.store.save(CONFIG_FILE, &inner.config)
     }
 
-    pub fn save_device(&self, inner: &Inner) -> io::Result<()> {
-        self.store.save(DEVICE_FILE, &inner.device)
+    pub fn save_license(&self, inner: &Inner) -> io::Result<()> {
+        self.store.save(LICENSE_FILE, &inner.license)
+    }
+
+    /// The licensing endpoint resolved from config (falls back to the built-in default).
+    pub fn license_endpoint(&self, inner: &Inner) -> license::Endpoint {
+        license::Endpoint::resolve(
+            &inner.config.settings.backend_url,
+            &inner.config.settings.backend_key,
+        )
+    }
+
+    /// Rejects an add/strengthen action when the user has no active plan.
+    fn require_license(&self, inner: &Inner, now: DateTime<Utc>) -> Result<(), ApiError> {
+        if inner.license.allows_management(now) {
+            Ok(())
+        } else {
+            let st = inner.license.status(now);
+            Err(ApiError {
+                status: 402,
+                body: json!({
+                    "code": "payment_required",
+                    "message": "Premium required to add or strengthen blocking.",
+                    "license": st,
+                }),
+            })
+        }
     }
 
     /// Advances the trusted clock and time-based request transitions.
@@ -246,10 +259,18 @@ impl App {
             "boot_time": self.boot_time,
             "practice_mode": practice,
             "presets": PRESETS,
-            "device": {
-                "registered": !inner.device.device_id.is_empty(),
-                "last_sync_ok": inner.device.last_sync_ok,
-                "last_error": inner.device.last_error,
+            "license": {
+                "status": inner.license.status(now.utc),
+                "plan": inner.license.plan,
+                "allows_management": inner.license.allows_management(now.utc),
+                "trial_days": inner.license.trial_days,
+                "premium_until": inner.license.premium_until,
+                "last_checked": inner.license.last_checked,
+                "last_error": inner.license.last_error,
+            },
+            "browsers": {
+                "supported": SUPPORTED_BROWSERS,
+                "unsupported": UNSUPPORTED_BROWSERS,
             },
         }))
     }
@@ -270,6 +291,10 @@ impl App {
             new.settings.practice_mode_until = Some(now.utc + Duration::days(PRACTICE_DAYS));
         }
         lock::validate_update(&inner.config, &new, &inner.state, now.utc)?;
+        // Without an active plan, changes may only remove or weaken blocking.
+        if block_weight(&new) > block_weight(&inner.config) {
+            self.require_license(inner, now.utc)?;
+        }
         inner.config = new;
         self.save_config(inner)?;
         Ok(json!({ "ok": true, "config": inner.config }))
@@ -279,6 +304,8 @@ impl App {
         let preset = presets::preset(id).ok_or_else(|| ApiError::not_found("preset"))?;
         let mut g = self.lock();
         let inner = &mut *g;
+        let now = self.now(inner);
+        self.require_license(inner, now.utc)?;
         let list = preset.to_block_list(&inner.config.settings.language);
         let list_id = list.id.clone();
         inner.config.block_lists.push(list);
@@ -305,6 +332,7 @@ impl App {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
+        self.require_license(inner, now.utc)?;
         let s = lock::start_session(&inner.config, block_list_id, minutes, lock_kind, now.utc)?;
         let v = json!(s);
         inner.state.sessions.push(s);
@@ -319,6 +347,7 @@ impl App {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
+        self.require_license(inner, now.utc)?;
         let s = inner
             .state
             .sessions
@@ -641,4 +670,77 @@ impl App {
             blocked || engine::effective_policy(&inner.config, &inner.state, now).url_blocked(url);
         Ok(json!({ "blocked": blocked_now }))
     }
+
+    // ----- Licensing -----
+
+    /// Contacts the backend to register (first run) and refresh license status.
+    /// Called from the background loop; errors are cached, not surfaced.
+    pub fn sync_license(&self) {
+        let (ep, mut lic, first) = {
+            let g = self.lock();
+            (
+                self.license_endpoint(&g),
+                g.license.clone(),
+                g.license.last_checked.is_none(),
+            )
+        };
+        let now = Utc::now();
+        let res = if first {
+            license::register(&ep, &mut lic, VERSION, now)
+        } else {
+            license::refresh(&ep, &mut lic, now)
+        };
+        if res.is_err() && first {
+            // No network on first run: start the trial locally so the app is usable.
+            if lic.trial_started.is_none() {
+                lic.trial_started = Some(now);
+            }
+        }
+        let mut g = self.lock();
+        // Preserve the install_id already in use.
+        lic.install_id = g.license.install_id.clone();
+        g.license = lic;
+        let _ = self.save_license(&g);
+    }
+
+    pub fn refresh_license(&self) -> ApiResult {
+        self.sync_license();
+        let g = self.lock();
+        Ok(json!({ "ok": true, "license": g.license.status(Utc::now()) }))
+    }
+
+    pub fn activate_premium(&self, code: &str) -> ApiResult {
+        if code.trim().is_empty() {
+            return Err(ApiError::bad_request("code"));
+        }
+        let (ep, mut lic) = {
+            let g = self.lock();
+            (self.license_endpoint(&g), g.license.clone())
+        };
+        license::redeem(&ep, &mut lic, code, Utc::now())
+            .map_err(|e| ApiError::new(400, "activation_failed", e))?;
+        let mut g = self.lock();
+        lic.install_id = g.license.install_id.clone();
+        g.license = lic;
+        self.save_license(&g)?;
+        Ok(json!({ "ok": true, "license": g.license.status(Utc::now()) }))
+    }
+}
+
+/// A coarse measure of how much a config blocks. Used to let users weaken
+/// their setup without a plan, while adding/strengthening needs premium.
+fn block_weight(c: &Config) -> i64 {
+    let s = &c.settings;
+    let rules: i64 = c
+        .block_lists
+        .iter()
+        .map(|b| (b.sites.len() + b.apps.len() + b.keywords.len()) as i64 + b.allowlist_mode as i64)
+        .sum();
+    let schedules = c.schedules.iter().filter(|x| x.enabled).count() as i64;
+    let limits = c.limits.iter().filter(|x| x.enabled).count() as i64;
+    let protection = c.protection.level as i64;
+    let flags = s.require_browser_extension as i64
+        + s.block_unsupported_browsers as i64
+        + s.distraction_filters.len() as i64;
+    rules + 5 * schedules + 5 * limits + 20 * protection + flags
 }
