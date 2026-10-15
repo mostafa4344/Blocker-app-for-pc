@@ -178,6 +178,7 @@ export function renderSettings(main) {
       <details class="card stack"><summary>${t("backend_url")}</summary>
         <label>${t("backend_url")}<span class="hint">${t("backend_hint")}</span><input type="url" id="s-backend" value="${esc(st.backend_url)}" placeholder="https://"></label>
         <label>${t("backend_key_label")}<input type="text" id="s-backend-key" value="${esc(st.backend_key)}"></label>
+        <label>${t("install_id_label")}<input type="text" value="${esc(lic.install_id || "")}" readonly onclick="this.select()"></label>
         ${lic.last_checked ? `<span class="badge ok">${t("last_checked_label")}: ${fmtTime(lic.last_checked)}</span>` : ""}
         ${lic.last_error ? `<span class="badge danger">${esc(lic.last_error)}</span>` : ""}
       </details>

@@ -194,6 +194,7 @@ export const STRINGS = {
     supported_browsers: "সমর্থিত ব্রাউজার (keyword ও adult স্ক্যানসহ কাজ করে)",
     unsupported_browsers: "অসমর্থিত ব্রাউজার",
     backend_key_label: "ব্যাকএন্ড কী (publishable)",
+    install_id_label: "ডিভাইস আইডি (Premium দিতে এটি লাগবে)",
     err_payment_required: "Premium ছাড়া নতুন ব্লক যোগ বা আরও কড়া করা যাবে না।",
   },
   en: {
@@ -390,6 +391,7 @@ export const STRINGS = {
     supported_browsers: "Supported browsers (keyword & adult scanning work)",
     unsupported_browsers: "Unsupported browsers",
     backend_key_label: "Backend key (publishable)",
+    install_id_label: "Device ID (needed to grant Premium)",
     err_payment_required: "Adding or strengthening blocking needs Premium.",
   },
 };

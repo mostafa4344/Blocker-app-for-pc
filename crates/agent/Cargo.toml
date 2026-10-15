@@ -8,6 +8,7 @@ chrono.workspace = true
 contentguard-core = { version = "0.1.0", path = "../core" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2 = "0.11.1"
 sysinfo = "0.39.6"
 tiny_http = "0.12.0"
 ureq = { version = "3.4.2", default-features = false, features = ["json", "gzip"] }

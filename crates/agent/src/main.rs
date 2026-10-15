@@ -10,6 +10,7 @@
 mod api;
 mod app;
 mod enforce;
+mod fingerprint;
 mod hosts;
 mod license;
 mod paths;

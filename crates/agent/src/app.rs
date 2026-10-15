@@ -104,6 +104,13 @@ impl App {
         let config: Config = store.load(CONFIG_FILE)?;
         let state: State = store.load(STATE_FILE)?;
         let mut license: License = store.load(LICENSE_FILE)?;
+        // Prefer a machine-derived id so wiping app data does not reset the trial;
+        // fall back to a random persisted id when the machine id is unavailable.
+        if license.install_id.trim().is_empty() {
+            if let Some(id) = crate::fingerprint::install_id() {
+                license.install_id = id;
+            }
+        }
         license.ensure_install_id();
         // Start the trial immediately (and persist it) so the app is usable on
         // first run before the backend is reached; the server corrects it on sync.
@@ -267,6 +274,7 @@ impl App {
             "presets": PRESETS,
             "license": {
                 "status": inner.license.status(now.utc),
+                "install_id": inner.license.install_id,
                 "plan": inner.license.plan,
                 "allows_management": inner.license.allows_management(now.utc),
                 "trial_days": inner.license.trial_days,

@@ -100,3 +100,12 @@
 4. **Supabase migration আপনাকে একবার apply করতে হবে:** `supabase db push` (অথবা SQL editor-এ `migrations/20261015000000_licensing.sql` + `seed.sql`)। নইলে লাইসেন্স সার্ভার কাজ করবে না (app তখন শুধু লোকাল ট্রায়ালে চলবে)।
 5. **পেমেন্ট এখনো যুক্ত হয়নি।** এখন `redeem_code` দিয়ে Premium (টেস্ট কোড: PREMIUM-LIFETIME, PREMIUM-30D, PREMIUM-365D)। bKash/Nagad/কার্ড যোগ করতে একটা পেমেন্ট webhook দরকার যেটা কেনার পর `codes` টেবিলে কোড বসাবে বা সরাসরি `accounts.plan='premium'` করবে। কোন পেমেন্ট মাধ্যম চান, জানালে যোগ করব।
 6. **publishable key টি repo-তে আছে** (ডিফল্ট হিসেবে)। এটা publishable বলেই শেয়ারযোগ্য, কিন্তু আসল নিরাপত্তা নির্ভর করে RLS + RPC-র উপর (সেভাবেই করা হয়েছে: anon key শুধু RPC চালাতে পারে, টেবিল সরাসরি পড়তে/লিখতে পারে না)।
+
+---
+
+# আপডেট — ১৫ অক্টোবর ২০২৬ (তৃতীয় ধাপ)
+
+- **Supabase এক-ফাইল setup:** `supabase/setup.sql` — Supabase SQL editor-এ paste করে Run করলেই সব তৈরি (টেবিল + RLS + RPC + payment webhook-এর জন্য admin RPC + টেস্ট কোড)। আসল Postgres-এ যাচাই: idempotent; register→trial, redeem→premium, admin_grant_premium (service_role) কাজ করে; anon admin function বা টেবিল **সরাসরি পড়তে পারে না** (permission denied)।
+- **Trial-reset শক্ত করা হয়েছে:** `install_id` এখন **মেশিন-ভিত্তিক** (Windows: MachineGuid, macOS: IOPlatformUUID, Linux: /etc/machine-id — salt দিয়ে hash)। অ্যাপের ডেটা ফোল্ডার পুরো মুছে ফেললেও একই `install_id` থাকে, তাই ডেটা মুছে নতুন ট্রায়াল পাওয়া যায় না (container-এ যাচাই করা হয়েছে)। শুধু OS reinstall করলে বদলায় — সেটাই সীমা।
+- **Premium দেওয়া (webhook/ম্যানুয়াল):** service-role দিয়ে `select admin_grant_premium('<device_id>', 30);` (null = আজীবন), অথবা `admin_create_code(...)` দিয়ে কোড বানিয়ে user-কে দিন। Device ID অ্যাপে **Settings → (advanced)** এ দেখা যায়।
+- পরের ধাপ (আমি করব): পেমেন্ট webhook template, আর আরও কিছু robustness।
