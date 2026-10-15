@@ -1,4 +1,4 @@
-# FocusFort: Blocker App for PC
+# ContentGuard: Blocker App for PC
 
 Windows / macOS / Linux-এর জন্য একটা website, app আর social media blocker। এতে আছে time limit, schedule, lock mode, আর partner-ভিত্তিক uninstall protection।
 
@@ -21,7 +21,7 @@ Windows / macOS / Linux-এর জন্য একটা website, app আর soc
 
 ```sh
 # hosts file আর data আলাদা জায়গায় রেখে, admin ছাড়াই
-FOCUSFORT_DATA_DIR=./.dev/data FOCUSFORT_HOSTS_FILE=./.dev/hosts cargo run -p focusfort-agent -- run
+CONTENTGUARD_DATA_DIR=./.dev/data CONTENTGUARD_HOSTS_FILE=./.dev/hosts cargo run -p contentguard-agent -- run
 # তারপর browser-এ: http://127.0.0.1:17345/
 
 # Partner backend (ঐচ্ছিক)
@@ -40,7 +40,7 @@ cd backend && npm test
 
 ## Install (আসল ব্যবহার)
 
-CI প্রতিটি OS-এর জন্য `FocusFort-<os>` নামে একটা artifact বানায়:
+CI প্রতিটি OS-এর জন্য `ContentGuard-<os>` নামে একটা artifact বানায়:
 
 - **Windows:** Administrator PowerShell-এ `install.ps1`
 - **macOS / Linux:** `sudo ./install.sh`
@@ -49,4 +49,4 @@ Uninstall করতে হলে, uninstall protection চালু থাকল
 
 ## Agent commands
 
-`focusfort-agent run | service | uninstall-check | cleanup | status | version`
+`contentguard-agent run | service | uninstall-check | cleanup | status | version`

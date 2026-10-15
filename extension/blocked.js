@@ -5,7 +5,7 @@ const TEXT = {
   bn: {
     title: "এই সাইটটি এখন ব্লক করা",
     back: "পেছনে যান",
-    open: "FocusFort খুলুন",
+    open: "ContentGuard খুলুন",
     until: "পর্যন্ত",
     session: "ফোকাস সেশন চলছে",
     schedule: "সময়সূচি অনুযায়ী ব্লক",
@@ -22,7 +22,7 @@ const TEXT = {
   en: {
     title: "This site is blocked right now",
     back: "Go back",
-    open: "Open FocusFort",
+    open: "Open ContentGuard",
     until: "until",
     session: "Focus session in progress",
     schedule: "Blocked by schedule",
@@ -79,7 +79,7 @@ function fmt(iso, lang) {
   if (/^https?:/.test(blockedUrl)) {
     fetch("http://127.0.0.1:17345/api/ext/activity", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-FocusFort": "1" },
+      headers: { "Content-Type": "application/json", "X-ContentGuard": "1" },
       body: JSON.stringify({ url: blockedUrl, seconds: 0, opened: true, browser: navigator.userAgent.includes("Firefox") ? "firefox" : "chromium" }),
     }).catch(() => {});
   }

@@ -6,13 +6,13 @@
 
 | # | বিষয় | সিদ্ধান্ত | কারণ |
 |---|---|---|---|
-| 1 | অ্যাপের নাম | **FocusFort** (অস্থায়ী) | Research-এর "Fortress" ধারণা থেকে নেওয়া। পরে সহজে বদলানো যাবে: `FocusFort` লেখা খুঁজে replace করলেই হবে। |
+| 1 | অ্যাপের নাম | **ContentGuard** (অস্থায়ী) | Research-এর "Fortress" ধারণা থেকে নেওয়া। পরে সহজে বদলানো যাবে: `ContentGuard` লেখা খুঁজে replace করলেই হবে। |
 | 2 | ভাষা | Core/agent **Rust**-এ; UI হলো সাধারণ HTML/JS | Rust দ্রুত, নিরাপদ, আর এক code দিয়ে Windows/macOS/Linux তিনটাতেই চলে। |
 | 3 | Desktop UI | Agent নিজেই `http://127.0.0.1:17345`-এ UI দেখায় (browser-এ খোলে) | এই container-এ Tauri-র জন্য দরকারি WebKit নেই। একই UI পরে Tauri দিয়ে আলাদা window + tray icon হিসেবে মোড়ানো যাবে, কোনো বড় পরিবর্তন লাগবে না। **পরের ধাপ।** |
 | 4 | Website block | **hosts file** (agent) + **browser extension** (DNR rules) | hosts file সব browser-এ কাজ করে। extension দিয়ে path (`youtube.com/shorts`), keyword, allowlist আর partial block হয়। |
 | 5 | App block | চলমান process-এর নাম মিলিয়ে বন্ধ করা | Cold Turkey/FocusMe-ও এভাবে করে। explorer.exe, svchost-এর মতো system process কখনো বন্ধ করা হয় না। |
 | 6 | Uninstall protection | ৪টি স্তর: বন্ধ / সচেতন / প্রতিশ্রুতিবদ্ধ (২৪–৭২ ঘণ্টা অপেক্ষা) / পার্টনার লক | Research doc-এর প্রস্তাব অনুযায়ী। **প্রতিটি স্তরেই বৈধ বের হওয়ার পথ আছে** (cooldown বা partner timeout)। কেউ চিরতরে আটকে থাকে না, তাই antivirus অ্যাপটাকে malware হিসেবে ধরবে না। |
-| 7 | Uninstall-এর পদ্ধতি | Installer একটা স্বাভাবিক Windows service বসায়। Uninstaller চালালে আগে `focusfort-agent uninstall-check` চলে, approval না থাকলে uninstall থেমে যায়। | পুরোপুরি স্বচ্ছ পদ্ধতি। কোনো লুকানো কৌশল নেই। |
+| 7 | Uninstall-এর পদ্ধতি | Installer একটা স্বাভাবিক Windows service বসায়। Uninstaller চালালে আগে `contentguard-agent uninstall-check` চলে, approval না থাকলে uninstall থেমে যায়। | পুরোপুরি স্বচ্ছ পদ্ধতি। কোনো লুকানো কৌশল নেই। |
 | 8 | Fortress স্তর | Code-এ রাখা হয়নি, শুধু গাইড হিসেবে প্রস্তাব | User-এর account Standard করে দেওয়া, আর admin password partner-এর কাছে রাখা, এটা OS-এর নিজস্ব নিয়ম। পরের version-এ একটা "setup wizard" বানানো যায়। |
 | 9 | ঘড়ি বদলে ফাঁকি | `TrustedClock`: wall clock আর monotonic time না মিললে monotonic time বিশ্বাস করা হয় | ঘড়ি সামনে বা পেছনে নিয়ে session শেষ করা যায় না। |
 | 10 | Lock-এর নিয়ম | Lock থাকা অবস্থায় শুধু "আরও কড়া" করা যায়: সাইট যোগ করা যাবে, সরানো যাবে না; সীমা কমানো যাবে, বাড়ানো যাবে না | Cold Turkey-র মডেল। Agent server-side যাচাই করে, তাই UI বাইপাস করলেও কাজ হয় না। |
@@ -21,7 +21,7 @@
 | 13 | Backend কোথায় লাগে | শুধু Partner approval আর tamper alert-এ | বাকি সব offline কাজ করে। Privacy-first: কোনো browsing history বা screenshot server-এ যায় না। |
 | 14 | Email | `outbox` table-এ জমা থাকে, console-এ log হয় | এখনো কোনো email service যুক্ত করা হয়নি। Supabase-এ নেওয়ার সময় Resend/SMTP যোগ করতে হবে। |
 | 15 | ডিফল্ট ভাষা | বাংলা, সাথে English | — |
-| 16 | Local API-র নিরাপত্তা | শুধু 127.0.0.1; Host header যাচাই; পরিবর্তন করতে `X-FocusFort` header লাগে; শুধু extension origin-কে CORS অনুমতি | অন্য কোনো website যেন agent-এ কিছু বদলাতে না পারে। |
+| 16 | Local API-র নিরাপত্তা | শুধু 127.0.0.1; Host header যাচাই; পরিবর্তন করতে `X-ContentGuard` header লাগে; শুধু extension origin-কে CORS অনুমতি | অন্য কোনো website যেন agent-এ কিছু বদলাতে না পারে। |
 
 ## ২. যা পরীক্ষা করা হয়েছে (এই Linux container-এ)
 
@@ -52,7 +52,7 @@
 
 ## ৫. আপনার সিদ্ধান্ত লাগবে
 
-1. **নাম ও brand:** FocusFort রাখবেন, নাকি অন্য নাম?
+1. **নাম ও brand:** ContentGuard রাখবেন, নাকি অন্য নাম?
 2. **Code signing certificate** (Windows EV/OV, Apple Developer ID): release-এর আগে কিনতে হবে, না হলে SmartScreen warning দেখাবে।
 3. **Supabase project:** তৈরি হলে URL আর key দিন, আমি Edge Function port করে দেব।
 4. **Email service:** Resend নাকি SMTP?

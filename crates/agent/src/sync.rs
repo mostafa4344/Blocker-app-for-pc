@@ -13,8 +13,8 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde_json::json;
 
-use focusfort_core::model::ProtectionLevel;
-use focusfort_core::protection::RequestStatus;
+use contentguard_core::model::ProtectionLevel;
+use contentguard_core::protection::RequestStatus;
 
 use crate::app::{App, VERSION};
 
@@ -49,9 +49,9 @@ fn os_name() -> &'static str {
     }
 }
 
-/// Seconds between sync rounds (`FOCUSFORT_SYNC_SECS` shortens it for development).
+/// Seconds between sync rounds (`CONTENTGUARD_SYNC_SECS` shortens it for development).
 fn loop_secs() -> u64 {
-    std::env::var("FOCUSFORT_SYNC_SECS")
+    std::env::var("CONTENTGUARD_SYNC_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(60)

@@ -90,6 +90,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
 
 [[package]]
+name = "contentguard-agent"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "contentguard-core",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tiny_http",
+ "ureq",
+ "windows-service",
+]
+
+[[package]]
+name = "contentguard-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rand",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -190,31 +215,6 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
  "zlib-rs",
-]
-
-[[package]]
-name = "focusfort-agent"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "focusfort-core",
- "serde",
- "serde_json",
- "sysinfo",
- "tiny_http",
- "ureq",
- "windows-service",
-]
-
-[[package]]
-name = "focusfort-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "rand",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]

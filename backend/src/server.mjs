@@ -12,5 +12,5 @@ const publicUrl = process.env.PUBLIC_URL || `http://localhost:${port}`;
 
 const store = new JsonStore(path.join(dataDir, "db.json"));
 const app = createApp({ store, publicUrl });
-http.createServer(app.handle).listen(port, () => console.log(`focusfort-backend on :${port} (data: ${dataDir})`));
+http.createServer(app.handle).listen(port, () => console.log(`contentguard-backend on :${port} (data: ${dataDir})`));
 setInterval(app.checkSilentDevices, 60 * 1000);

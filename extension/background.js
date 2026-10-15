@@ -1,4 +1,4 @@
-// FocusFort extension background: keeps blocking rules in sync with the local
+// ContentGuard extension background: keeps blocking rules in sync with the local
 // agent and reports which site is in use so daily limits can be counted.
 if (typeof buildRules === "undefined") importScripts("rules.js");
 
@@ -13,7 +13,7 @@ let lastHost = null;
 async function agent(path, body) {
   const res = await fetch(`${AGENT}${path}`, body === undefined ? {} : {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-FocusFort": "1" },
+    headers: { "Content-Type": "application/json", "X-ContentGuard": "1" },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`agent ${res.status}`);

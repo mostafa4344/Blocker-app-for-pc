@@ -1,5 +1,5 @@
 //! Windows service entry point. The installer registers the service as
-//! `focusfort-agent.exe service` with automatic start.
+//! `contentguard-agent.exe service` with automatic start.
 
 use std::ffi::OsString;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,7 +12,7 @@ use windows_service::service::{
 use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
 use windows_service::{define_windows_service, service_dispatcher};
 
-pub const SERVICE_NAME: &str = "FocusFort";
+pub const SERVICE_NAME: &str = "ContentGuard";
 
 define_windows_service!(ffi_service_main, service_main);
 
@@ -22,7 +22,7 @@ pub fn run() -> windows_service::Result<()> {
 
 fn service_main(_args: Vec<OsString>) {
     if let Err(e) = run_service() {
-        eprintln!("focusfort: {e}");
+        eprintln!("contentguard: {e}");
     }
 }
 

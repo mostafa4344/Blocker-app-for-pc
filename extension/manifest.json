@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FocusFort",
+  "name": "ContentGuard",
   "version": "0.1.0",
-  "description": "Companion extension for the FocusFort desktop blocker: block pages, path/keyword/allowlist blocking and hiding Shorts, Reels and feeds.",
+  "description": "Companion extension for the ContentGuard desktop blocker: block pages, path/keyword/allowlist blocking and hiding Shorts, Reels and feeds.",
   "icons": {
     "128": "icons/icon.png",
     "48": "icons/icon48.png"
@@ -26,7 +26,7 @@
   },
   "incognito": "spanning",
   "action": {
-    "default_title": "FocusFort",
+    "default_title": "ContentGuard",
     "default_popup": "popup.html"
   },
   "content_scripts": [
@@ -60,7 +60,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "extension@focusfort.app",
+      "id": "extension@contentguard.app",
       "strict_min_version": "121.0"
     }
   }

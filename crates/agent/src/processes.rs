@@ -3,13 +3,13 @@
 
 use std::collections::HashSet;
 
-use focusfort_core::matcher::normalize_app;
+use contentguard_core::matcher::normalize_app;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, Signal, System, UpdateKind};
 
 /// Processes that are never closed, whatever the block lists say, because
-/// closing them would break the operating system or FocusFort itself.
+/// closing them would break the operating system or ContentGuard itself.
 const NEVER_CLOSE: &[&str] = &[
-    "focusfort-agent",
+    "contentguard-agent",
     "system",
     "idle",
     "smss",

@@ -1,4 +1,4 @@
-//! FocusFort core: platform-independent blocking rules, schedules, limits,
+//! ContentGuard core: platform-independent blocking rules, schedules, limits,
 //! locks and protection requests. No OS calls live here, so everything is
 //! unit-testable on any machine.
 

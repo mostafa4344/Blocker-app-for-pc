@@ -8,10 +8,10 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use focusfort_core::matcher::SiteRule;
+use contentguard_core::matcher::SiteRule;
 
-const BEGIN: &str = "# BEGIN FocusFort (managed automatically - do not edit)";
-const END: &str = "# END FocusFort";
+const BEGIN: &str = "# BEGIN ContentGuard (managed automatically - do not edit)";
+const END: &str = "# END ContentGuard";
 const SUBDOMAINS: &[&str] = &[
     "", "www.", "m.", "mobile.", "web.", "touch.", "mbasic.", "old.", "new.",
 ];

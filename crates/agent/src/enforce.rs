@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use focusfort_core::engine;
-use focusfort_core::matcher::normalize_app;
+use contentguard_core::engine;
+use contentguard_core::matcher::normalize_app;
 
 use crate::app::App;
 use crate::hosts;
@@ -110,7 +110,7 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             }
             if g.state_dirty && last_save.elapsed() >= SAVE_EVERY {
                 if let Err(e) = app.save_state(&mut g) {
-                    eprintln!("focusfort: saving state failed: {e}");
+                    eprintln!("contentguard: saving state failed: {e}");
                 }
                 last_save = Instant::now();
             }

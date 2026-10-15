@@ -133,7 +133,7 @@ pub struct Settings {
     pub language: String,
     /// Shown on the block page.
     pub goal: String,
-    /// Close browsers that do not have the FocusFort extension connected
+    /// Close browsers that do not have the ContentGuard extension connected
     /// while a block is active.
     pub require_browser_extension: bool,
     /// Base URL of the sync/partner backend; empty = offline only.

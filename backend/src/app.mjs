@@ -1,4 +1,4 @@
-// HTTP handlers for the FocusFort partner/sync backend.
+// HTTP handlers for the ContentGuard partner/sync backend.
 import crypto from "node:crypto";
 
 const SILENT_AFTER_MS = 30 * 60 * 1000;
@@ -25,25 +25,25 @@ const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
 
 const TEXT = {
   bn: {
-    kind: { uninstall: "FocusFort আনইন্সটল করা", change_protection: "সুরক্ষা কমানো", end_session: "লক করা ফোকাস সেশন থামানো" },
+    kind: { uninstall: "ContentGuard আনইন্সটল করা", change_protection: "সুরক্ষা কমানো", end_session: "লক করা ফোকাস সেশন থামানো" },
     reqSubject: (dev) => `${dev}: আপনার অনুমতি চাওয়া হয়েছে`,
     reqBody: (who, dev, kind, reason, link, auto) =>
       `${who} তাঁর কম্পিউটার "${dev}"-এ ${kind}-এর অনুমতি চেয়েছেন।\n${reason ? `কারণ: ${reason}\n` : ""}\nঅনুমতি দিতে বা না দিতে এখানে যান: ${link}\n\nআপনি উত্তর না দিলে ${auto}-এ নিজে থেকে অনুমোদিত হবে।`,
-    silentSubject: (dev) => `${dev}: FocusFort রিপোর্ট পাঠানো বন্ধ করেছে`,
-    silentBody: (dev, last) => `"${dev}" কম্পিউটারের FocusFort শেষবার ${last}-এ যোগাযোগ করেছিল। কম্পিউটার বন্ধ বা অফলাইন থাকতে পারে, অথবা FocusFort বন্ধ করা হয়ে থাকতে পারে। একবার খোঁজ নিয়ে দেখতে পারেন।`,
-    uninstSubject: (dev) => `${dev}: FocusFort আনইন্সটল করা হয়েছে`,
-    uninstBody: (dev) => `অনুমোদিত অনুরোধ অনুযায়ী "${dev}" থেকে FocusFort সরানো হয়েছে।`,
+    silentSubject: (dev) => `${dev}: ContentGuard রিপোর্ট পাঠানো বন্ধ করেছে`,
+    silentBody: (dev, last) => `"${dev}" কম্পিউটারের ContentGuard শেষবার ${last}-এ যোগাযোগ করেছিল। কম্পিউটার বন্ধ বা অফলাইন থাকতে পারে, অথবা ContentGuard বন্ধ করা হয়ে থাকতে পারে। একবার খোঁজ নিয়ে দেখতে পারেন।`,
+    uninstSubject: (dev) => `${dev}: ContentGuard আনইন্সটল করা হয়েছে`,
+    uninstBody: (dev) => `অনুমোদিত অনুরোধ অনুযায়ী "${dev}" থেকে ContentGuard সরানো হয়েছে।`,
     page: { title: "অনুমতির অনুরোধ", approve: "অনুমতি দিন", deny: "অনুমতি দেবেন না", done: "ধন্যবাদ! আপনার সিদ্ধান্ত পাঠানো হয়েছে।", gone: "এই লিংকটি আর কাজ করছে না।", reason: "কারণ" },
   },
   en: {
-    kind: { uninstall: "uninstall FocusFort", change_protection: "lower their protection", end_session: "end a locked focus session" },
+    kind: { uninstall: "uninstall ContentGuard", change_protection: "lower their protection", end_session: "end a locked focus session" },
     reqSubject: (dev) => `${dev}: your approval is requested`,
     reqBody: (who, dev, kind, reason, link, auto) =>
       `${who} asked for your approval to ${kind} on "${dev}".\n${reason ? `Reason: ${reason}\n` : ""}\nApprove or deny here: ${link}\n\nIf you don't answer, it will be approved automatically at ${auto}.`,
-    silentSubject: (dev) => `${dev}: FocusFort stopped reporting`,
-    silentBody: (dev, last) => `FocusFort on "${dev}" last checked in at ${last}. The computer may be off or offline, or FocusFort may have been stopped. You may want to check in.`,
-    uninstSubject: (dev) => `${dev}: FocusFort was uninstalled`,
-    uninstBody: (dev) => `FocusFort was removed from "${dev}" after an approved request.`,
+    silentSubject: (dev) => `${dev}: ContentGuard stopped reporting`,
+    silentBody: (dev, last) => `ContentGuard on "${dev}" last checked in at ${last}. The computer may be off or offline, or ContentGuard may have been stopped. You may want to check in.`,
+    uninstSubject: (dev) => `${dev}: ContentGuard was uninstalled`,
+    uninstBody: (dev) => `ContentGuard was removed from "${dev}" after an approved request.`,
     page: { title: "Approval request", approve: "Approve", deny: "Deny", done: "Thank you! Your decision was sent.", gone: "This link is no longer valid.", reason: "Reason" },
   },
 };
@@ -92,7 +92,7 @@ export function createApp({ store, publicUrl = "http://localhost:8787", clock = 
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
     });
-    res.end(`<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FocusFort</title>
+    res.end(`<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ContentGuard</title>
 <style>body{font-family:system-ui,"Noto Sans Bengali",sans-serif;background:#f6f7fb;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}main{background:#fff;padding:32px;border-radius:16px;max-width:480px;box-shadow:0 8px 30px #0001}button{font:inherit;padding:10px 18px;border-radius:10px;border:1px solid #ccd;margin:6px;cursor:pointer}.ok{background:#4f46e5;color:#fff;border-color:#4f46e5}</style></head><body><main>${body}</main></body></html>`);
   };
 

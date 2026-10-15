@@ -11,14 +11,14 @@ use chrono::{DateTime, Duration, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use focusfort_core::challenge::{self, Challenge};
-use focusfort_core::clock::TrustedClock;
-use focusfort_core::engine::{self, Now, Policy};
-use focusfort_core::lock::{self, PolicyError, UnlockProof};
-use focusfort_core::model::{Config, LockKind, Protection, ProtectionLevel, State};
-use focusfort_core::presets::{self, PRESETS};
-use focusfort_core::protection::{Request, RequestKind, RequestStatus};
-use focusfort_core::store::Store;
+use contentguard_core::challenge::{self, Challenge};
+use contentguard_core::clock::TrustedClock;
+use contentguard_core::engine::{self, Now, Policy};
+use contentguard_core::lock::{self, PolicyError, UnlockProof};
+use contentguard_core::model::{Config, LockKind, Protection, ProtectionLevel, State};
+use contentguard_core::presets::{self, PRESETS};
+use contentguard_core::protection::{Request, RequestKind, RequestStatus};
+use contentguard_core::store::Store;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CONFIG_FILE: &str = "config.json";
@@ -191,9 +191,9 @@ impl App {
         let inner = &mut *g;
         let (now, policy) = self.advance(inner);
         let day = now.day();
-        let usage_today: Vec<&focusfort_core::model::Usage> =
+        let usage_today: Vec<&contentguard_core::model::Usage> =
             inner.state.usage.iter().filter(|u| u.day == day).collect();
-        let mut stats_today: Vec<&focusfort_core::model::DailyStat> =
+        let mut stats_today: Vec<&contentguard_core::model::DailyStat> =
             inner.state.stats.iter().filter(|s| s.day == day).collect();
         stats_today.sort_by_key(|s| std::cmp::Reverse(s.seconds));
         stats_today.truncate(15);
@@ -261,7 +261,7 @@ impl App {
         let inner = &mut *g;
         let now = self.now(inner);
         // Fields the agent owns.
-        new.version = focusfort_core::model::CONFIG_VERSION;
+        new.version = contentguard_core::model::CONFIG_VERSION;
         new.settings.practice_mode_until = inner.config.settings.practice_mode_until;
         if new.settings.onboarded
             && !inner.config.settings.onboarded
@@ -617,7 +617,7 @@ impl App {
         let (now, policy) = self.advance(inner);
         let day = now.day();
         let blocked = policy.url_blocked(url);
-        let host = focusfort_core::matcher::host_of(url);
+        let host = contentguard_core::matcher::host_of(url);
         if !host.is_empty() {
             if blocked {
                 engine::record_stat(&mut inner.state, &day, &format!("site:{host}"), 0, opened);

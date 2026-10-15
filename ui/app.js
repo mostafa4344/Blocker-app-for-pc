@@ -1,4 +1,4 @@
-// FocusFort UI entry point: navigation, rendering, onboarding and polling.
+// ContentGuard UI entry point: navigation, rendering, onboarding and polling.
 import { S, $, $$, t, num, esc, api, cfg, clone, refresh, openModal, closeModal, modalOpen, updateCountdowns, toast, errMsg } from "/core.js";
 import { renderHome } from "/home.js";
 import { renderLists, renderSchedules, renderLimits } from "/editors.js";

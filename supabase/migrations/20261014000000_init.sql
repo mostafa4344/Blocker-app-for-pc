@@ -1,4 +1,4 @@
--- FocusFort partner/sync backend schema for Supabase (Postgres).
+-- ContentGuard partner/sync backend schema for Supabase (Postgres).
 -- Mirrors backend/src/store.mjs. Devices authenticate with their own secret
 -- through Edge Functions (service role); there is no direct client access,
 -- so RLS is enabled with no policies for anon/authenticated roles.

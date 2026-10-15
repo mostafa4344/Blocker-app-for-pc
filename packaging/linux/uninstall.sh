@@ -1,13 +1,13 @@
 #!/bin/sh
-# FocusFort uninstaller for Linux. Honours uninstall protection.
+# ContentGuard uninstaller for Linux. Honours uninstall protection.
 set -eu
-if ! /usr/local/bin/focusfort-agent uninstall-check; then
-  echo "Open FocusFort > Protection > Request uninstall, then run this again once approved." >&2
+if ! /usr/local/bin/contentguard-agent uninstall-check; then
+  echo "Open ContentGuard > Protection > Request uninstall, then run this again once approved." >&2
   exit 2
 fi
-systemctl disable --now focusfort.service || true
-/usr/local/bin/focusfort-agent cleanup || true
-rm -f /etc/systemd/system/focusfort.service /usr/local/bin/focusfort-agent /usr/local/bin/focusfort-uninstall
-rm -rf /usr/local/share/focusfort
+systemctl disable --now contentguard.service || true
+/usr/local/bin/contentguard-agent cleanup || true
+rm -f /etc/systemd/system/contentguard.service /usr/local/bin/contentguard-agent /usr/local/bin/contentguard-uninstall
+rm -rf /usr/local/share/contentguard
 systemctl daemon-reload
-echo "FocusFort removed (settings kept in /var/lib/focusfort)."
+echo "ContentGuard removed (settings kept in /var/lib/contentguard)."

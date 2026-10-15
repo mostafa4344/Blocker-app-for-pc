@@ -3,7 +3,7 @@
 //! Protections against other websites talking to it:
 //! * the `Host` header must be the loopback address (blocks DNS rebinding);
 //! * cross-origin requests are only answered for browser-extension origins;
-//! * every state-changing request needs the `X-FocusFort: 1` header, which a
+//! * every state-changing request needs the `X-ContentGuard: 1` header, which a
 //!   web page cannot send cross-origin without a CORS preflight we refuse.
 //!
 //! Lock rules are enforced in `App`, so even a local program using the API
@@ -16,8 +16,8 @@ use serde::Deserialize;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use focusfort_core::model::{Config, LockKind};
-use focusfort_core::protection::RequestKind;
+use contentguard_core::model::{Config, LockKind};
+use contentguard_core::protection::RequestKind;
 
 use crate::app::{ApiError, ApiResult, App};
 
@@ -112,7 +112,7 @@ fn handle(app: &App, port: u16, mut req: Request) {
                 ))
                 .with_header(hdr(
                     "Access-Control-Allow-Headers",
-                    "Content-Type, X-FocusFort",
+                    "Content-Type, X-ContentGuard",
                 ))
                 .with_header(hdr("Vary", "Origin"));
         }
@@ -153,7 +153,7 @@ fn handle(app: &App, port: u16, mut req: Request) {
         if let Some((ct, body)) = static_file {
             return respond(req, 200, ct, body.to_string());
         }
-    } else if header(&req, "X-FocusFort") != Some("1") {
+    } else if header(&req, "X-ContentGuard") != Some("1") {
         return respond(
             req,
             403,
@@ -292,7 +292,7 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
         }
         (Method::Post, ["api", "requests", id, "cancel"]) => app.cancel_request(id),
         (Method::Post, ["api", "requests", id, "apply"]) => app.apply_request(id),
-        // Used by the uninstaller through `focusfort-agent uninstall-check`.
+        // Used by the uninstaller through `contentguard-agent uninstall-check`.
         (Method::Post, ["api", "uninstall", "consume"]) => {
             Ok(json!({ "allowed": app.uninstall_check()? }))
         }

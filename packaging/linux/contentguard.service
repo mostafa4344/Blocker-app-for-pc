@@ -1,9 +1,9 @@
 [Unit]
-Description=FocusFort website and app blocker
+Description=ContentGuard website and app blocker
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/focusfort-agent run
+ExecStart=/usr/local/bin/contentguard-agent run
 Restart=always
 RestartSec=5
 

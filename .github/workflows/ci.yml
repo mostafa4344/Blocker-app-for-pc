@@ -29,15 +29,15 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bin: focusfort-agent.exe
+            bin: contentguard-agent.exe
             pkg: windows
           - os: macos-latest
             target: aarch64-apple-darwin
-            bin: focusfort-agent
+            bin: contentguard-agent
             pkg: macos
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            bin: focusfort-agent
+            bin: contentguard-agent
             pkg: linux
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,16 +45,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release --target ${{ matrix.target }} -p focusfort-agent
+      - run: cargo build --release --target ${{ matrix.target }} -p contentguard-agent
       - name: Assemble release folder
         shell: bash
         run: |
-          mkdir -p dist/FocusFort
-          cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/FocusFort/
-          cp -r packaging/${{ matrix.pkg }}/* dist/FocusFort/
-          cp -r extension dist/FocusFort/extension
-          rm -rf dist/FocusFort/extension/test
+          mkdir -p dist/ContentGuard
+          cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/ContentGuard/
+          cp -r packaging/${{ matrix.pkg }}/* dist/ContentGuard/
+          cp -r extension dist/ContentGuard/extension
+          rm -rf dist/ContentGuard/extension/test
       - uses: actions/upload-artifact@v4
         with:
-          name: FocusFort-${{ matrix.pkg }}
-          path: dist/FocusFort
+          name: ContentGuard-${{ matrix.pkg }}
+          path: dist/ContentGuard

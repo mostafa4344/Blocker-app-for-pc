@@ -1,11 +1,11 @@
-//! FocusFort agent: the background service that enforces blocks.
+//! ContentGuard agent: the background service that enforces blocks.
 //!
 //! Usage:
-//!   focusfort-agent run               run in the foreground (development, Linux/macOS service)
-//!   focusfort-agent service           entry point used by the Windows service manager
-//!   focusfort-agent uninstall-check   exit 0 if uninstalling is allowed right now
-//!   focusfort-agent cleanup           remove FocusFort entries from the hosts file
-//!   focusfort-agent status            print the current status as JSON
+//!   contentguard-agent run               run in the foreground (development, Linux/macOS service)
+//!   contentguard-agent service           entry point used by the Windows service manager
+//!   contentguard-agent uninstall-check   exit 0 if uninstalling is allowed right now
+//!   contentguard-agent cleanup           remove ContentGuard entries from the hosts file
+//!   contentguard-agent status            print the current status as JSON
 
 mod api;
 mod app;
@@ -20,7 +20,7 @@ mod sync;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use focusfort_core::store::Store;
+use contentguard_core::store::Store;
 
 use crate::app::App;
 
@@ -35,7 +35,7 @@ pub fn run_until(stop: Arc<AtomicBool>) -> std::io::Result<()> {
     let port = paths::listen_port();
     api::serve(app.clone(), port, 4)?;
     eprintln!(
-        "focusfort: listening on http://127.0.0.1:{port} (data: {})",
+        "contentguard: listening on http://127.0.0.1:{port} (data: {})",
         paths::data_dir().display()
     );
     let sync_app = app.clone();
@@ -60,7 +60,7 @@ fn uninstall_check() -> std::io::Result<(bool, Arc<App>)> {
     let app = open_app()?;
     match http
         .post(&url)
-        .header("X-FocusFort", "1")
+        .header("X-ContentGuard", "1")
         .send_json(serde_json::json!({}))
     {
         Ok(mut resp) if resp.status() == 200 => {
@@ -84,7 +84,7 @@ fn main() {
             match run_until(stop) {
                 Ok(()) => 0,
                 Err(e) => {
-                    eprintln!("focusfort: {e}");
+                    eprintln!("contentguard: {e}");
                     1
                 }
             }
@@ -93,7 +93,7 @@ fn main() {
         "service" => match service::run() {
             Ok(()) => 0,
             Err(e) => {
-                eprintln!("focusfort: service error: {e}");
+                eprintln!("contentguard: service error: {e}");
                 1
             }
         },
@@ -104,18 +104,18 @@ fn main() {
                 0
             }
             Ok((false, _)) => {
-                println!("Uninstall protection is on. Open FocusFort > Protection and request uninstall first.");
+                println!("Uninstall protection is on. Open ContentGuard > Protection and request uninstall first.");
                 2
             }
             Err(e) => {
-                eprintln!("focusfort: {e}");
+                eprintln!("contentguard: {e}");
                 1
             }
         },
         "cleanup" => match hosts::apply(&paths::hosts_file(), &[]) {
             Ok(_) => 0,
             Err(e) => {
-                eprintln!("focusfort: {e}");
+                eprintln!("contentguard: {e}");
                 1
             }
         },
@@ -125,20 +125,20 @@ fn main() {
                 0
             }
             Ok(Err(e)) => {
-                eprintln!("focusfort: {:?}", e.body);
+                eprintln!("contentguard: {:?}", e.body);
                 1
             }
             Err(e) => {
-                eprintln!("focusfort: {e}");
+                eprintln!("contentguard: {e}");
                 1
             }
         },
         "version" | "--version" => {
-            println!("focusfort-agent {}", app::VERSION);
+            println!("contentguard-agent {}", app::VERSION);
             0
         }
         _ => {
-            eprintln!("usage: focusfort-agent [run|uninstall-check|cleanup|status|version]");
+            eprintln!("usage: contentguard-agent [run|uninstall-check|cleanup|status|version]");
             64
         }
     };
