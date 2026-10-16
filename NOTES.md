@@ -129,3 +129,11 @@
 - container-এ DNS বন্ধ থাকলেও fallback দিয়ে ২৫টি hosts entry লেখা যাচাই করা হয়েছে; ১৫টি agent test পাস।
 
 **পরের ধাপ (আমি করব):** DNS family-filter স্তর (agent থেকে family-safe DoH + DNS বদল আটকানো), তারপর WFP system-wide enforcement।
+
+---
+
+# আপডেট — ১৬ অক্টোবর ২০২৬ (পঞ্চম ধাপ)
+
+- **সেটিংস ব্যাকআপ (export/import)** UI-তে যোগ — নতুন PC-তে সব লিস্ট/নিয়ম ফিরে পাওয়া যায়; import আগের মতোই lock ও Premium নিয়ম মানে।
+- **DNS family-filter স্তর (ডিফল্ট বন্ধ, opt-in):** `dns.rs` — Cloudflare for Families (family) ও CleanBrowsing (strict) resolver; Windows `netsh` / macOS `networksetup` / Linux resolv.conf-এর জন্য pure command builder লেখা ও unit-test করা। Settings-এ option যোগ। **আসল system-DNS বদলানোর execution অংশটা এখনো wire করা হয়নি** — এটা OS-ভিত্তিক ও ঝুঁকিপূর্ণ, তাই আপনার Windows PC Remote Control-এ যুক্ত হলে ওখানে টেস্ট করে চালু করব (নইলে কারো ইন্টারনেট ভাঙতে পারে)। builder গুলো তৈরি ও যাচাই করা আছে।
+- **Remote Control:** আপনার PC-তে Claude Desktop app বা `claude remote-control` চালালে আমি সরাসরি install/টেস্ট করতে পারব। এখনো কোনো ডিভাইস যুক্ত দেখা যায়নি।

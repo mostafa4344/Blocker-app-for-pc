@@ -165,6 +165,12 @@ export function renderSettings(main) {
         <label class="check"><input type="checkbox" id="s-ext" ${st.require_browser_extension ? "checked" : ""}>${t("require_ext")}</label>
         <label class="check"><input type="checkbox" id="s-unsup" ${st.block_unsupported_browsers ? "checked" : ""}><span>${t("block_unsupported")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
         <label class="check"><input type="checkbox" id="s-safe" ${st.force_safe_search ? "checked" : ""}><span>${t("safe_search")}<br><span class="hint">${t("safe_search_help")}</span></span></label>
+        <label>${t("dns_filter_label")}<span class="hint">${t("dns_filter_help")}</span>
+          <select id="s-dns">
+            <option value="off" ${st.dns_filter === "off" ? "selected" : ""}>${t("dns_off")}</option>
+            <option value="family" ${st.dns_filter === "family" ? "selected" : ""}>${t("dns_family")}</option>
+            <option value="strict" ${st.dns_filter === "strict" ? "selected" : ""}>${t("dns_strict")}</option>
+          </select></label>
         <div><strong>${t("supported_browsers")}</strong><div class="chips">${browsers.supported.map((b) => `<span class="badge ok">${esc(nice(b))}</span>`).join("")}</div></div>
         <div><strong>${t("unsupported_browsers")}</strong><div class="chips">${browsers.unsupported.map((b) => `<span class="badge">${esc(nice(b))}</span>`).join("")}</div></div>
       </section>
@@ -199,6 +205,7 @@ export function renderSettings(main) {
     c.settings.require_browser_extension = $("#s-ext", main).checked;
     c.settings.block_unsupported_browsers = $("#s-unsup", main).checked;
     c.settings.force_safe_search = $("#s-safe", main).checked;
+    c.settings.dns_filter = $("#s-dns", main).value;
     c.settings.distraction_filters = $$("[data-filter]", main).filter((x) => x.checked).map((x) => x.dataset.filter);
     c.settings.backend_url = $("#s-backend", main).value.trim();
     c.settings.backend_key = $("#s-backend-key", main).value.trim();

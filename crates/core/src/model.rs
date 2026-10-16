@@ -142,6 +142,9 @@ pub struct Settings {
     /// Force SafeSearch / Restricted Mode on the major search engines and YouTube
     /// (always on, not only during blocks) via the hosts file.
     pub force_safe_search: bool,
+    /// Network-wide DNS family filter: "off" (default), "family", or "strict".
+    /// Points the OS resolver at a filtering DNS service (opt-in).
+    pub dns_filter: String,
     /// Licensing / account backend base URL (Supabase project or a compatible
     /// server). Empty uses the built-in default.
     pub backend_url: String,
@@ -164,6 +167,7 @@ impl Default for Settings {
             require_browser_extension: false,
             block_unsupported_browsers: false,
             force_safe_search: false,
+            dns_filter: "off".into(),
             backend_url: String::new(),
             backend_key: String::new(),
             practice_mode_until: None,

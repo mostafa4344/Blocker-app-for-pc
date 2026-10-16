@@ -756,6 +756,7 @@ fn block_weight(c: &Config) -> i64 {
     let flags = s.require_browser_extension as i64
         + s.block_unsupported_browsers as i64
         + s.force_safe_search as i64
+        + (s.dns_filter != "off") as i64
         + s.distraction_filters.len() as i64;
     rules + 5 * schedules + 5 * limits + 20 * protection + flags
 }
