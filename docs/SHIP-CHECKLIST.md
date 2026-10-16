@@ -34,5 +34,10 @@ What's DONE and verified in-repo vs. what needs your hardware/accounts.
 - WFP (Windows) / NetworkExtension (macOS) / nftables (Linux) for system-wide,
   bypass-proof enforcement (close VPNs, alt-DNS, unknown browsers).
 - Store listings for Chrome Web Store / Firefox Add-ons (one-click extension).
-- Second stable location for the install id (registry/hidden file) to further
-  resist trial reset.
+
+## ✅ Hardening added since first build
+- Second stable install-id anchor: besides the machine id, the id is mirrored
+  to a hidden home-dir file (`~/.contentguard-id`, outside the app data dir).
+  Resolution prefers an already-saved id, then the anchor, then the machine id,
+  then a random id — so wiping app data *or* regenerating the machine id keeps
+  the same trial. Override path with `CONTENTGUARD_ID_FILE`.

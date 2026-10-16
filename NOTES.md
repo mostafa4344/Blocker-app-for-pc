@@ -159,3 +159,17 @@ blocking engine, schedule, limit, lock (সব ধরন), time-delay protection
 1. CI artifact `Content Guard-windows` অথবা সরাসরি build → `install.ps1` (Administrator) দিয়ে install।
 2. আসল Windows-এ যাচাই: service চালু, hosts blocking, app বন্ধ, SafeSearch, uninstall-protection, trial→premium।
 3. DNS execution + পরে WFP system-wide — আসল মেশিনে টেস্ট করে ধাপে ধাপে চালু।
+
+# আপডেট — ১৬ অক্টোবর ২০২৬ (সপ্তম ধাপ): আসল PC-তে চালু + anti-reset আরও শক্ত
+
+- **অ্যাপ এখন আপনার আসল Windows PC-তে চালু** (one-line installer দিয়ে)। UI ইংরেজিতে,
+  trial চালু, practice mode on — স্ক্রিনশটে নিশ্চিত।
+- **Trial-reset প্রতিরোধ আরও শক্ত করা হলো:** install-id এখন দুটি জায়গায় anchor —
+  (১) machine id, (২) home-dir-এ লুকানো ফাইল `~/.contentguard-id` (app data dir-এর
+  বাইরে)। অগ্রাধিকার: license-এ সেভ করা id → anchor ফাইল → machine id → random।
+  ফলে app data মুছলে *বা* machine id পাল্টালেও একই trial থাকে। test যোগ করা হয়েছে
+  (মোট agent test ১৮→২০)। `CONTENTGUARD_ID_FILE` দিয়ে path override করা যায়।
+- Browser extension এখনও "not connected" দেখাচ্ছে — এটা ব্যবহারকারীকে একবার
+  `chrome://extensions` → Developer mode → Load unpacked দিয়ে লোড করতে হবে
+  (installer `...\ContentGuard\extension` ফোল্ডার extract করে রাখে)। Chrome Web Store
+  publish করলে এক-ক্লিকে হবে (আপনার dev account লাগবে)।
