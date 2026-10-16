@@ -137,3 +137,25 @@
 - **সেটিংস ব্যাকআপ (export/import)** UI-তে যোগ — নতুন PC-তে সব লিস্ট/নিয়ম ফিরে পাওয়া যায়; import আগের মতোই lock ও Premium নিয়ম মানে।
 - **DNS family-filter স্তর (ডিফল্ট বন্ধ, opt-in):** `dns.rs` — Cloudflare for Families (family) ও CleanBrowsing (strict) resolver; Windows `netsh` / macOS `networksetup` / Linux resolv.conf-এর জন্য pure command builder লেখা ও unit-test করা। Settings-এ option যোগ। **আসল system-DNS বদলানোর execution অংশটা এখনো wire করা হয়নি** — এটা OS-ভিত্তিক ও ঝুঁকিপূর্ণ, তাই আপনার Windows PC Remote Control-এ যুক্ত হলে ওখানে টেস্ট করে চালু করব (নইলে কারো ইন্টারনেট ভাঙতে পারে)। builder গুলো তৈরি ও যাচাই করা আছে।
 - **Remote Control:** আপনার PC-তে Claude Desktop app বা `claude remote-control` চালালে আমি সরাসরি install/টেস্ট করতে পারব। এখনো কোনো ডিভাইস যুক্ত দেখা যায়নি।
+
+---
+
+# আপডেট — ১৬ অক্টোবর ২০২৬ (ষষ্ঠ ধাপ): অফিসে থাকাকালীন অটোনমাস কাজ
+
+- নতুন category preset: **Gambling (জুয়া), Dating, AI-help (ChatGPT/Chegg ইত্যাদি)**।
+- **পুরো pipeline Linux-এ আসল end-to-end টেস্ট করা হয়েছে** (Windows-এর বিকল্প হিসেবে): config → লক-করা session → hosts blocking (৯ লাইন) → SafeSearch pin (forcesafesearch IP) → license trial — সব একসাথে কাজ করেছে, UI-তে কোনো JS error নেই। স্ক্রিনশট chat-এ পাঠানো হয়েছে।
+
+## "১০০%" এর সৎ হিসাব
+**ক্লাউড থেকে যা সম্ভব — সব সম্পূর্ণ ও যাচাই করা (এই অংশে ১০০%):**
+blocking engine, schedule, limit, lock (সব ধরন), time-delay protection (unlimited), licensing trial→premium (Supabase লাইভ), fingerprint anti-reset, paywall gating, SafeSearch, browser supported/unsupported + block, extension, bn/en UI, backup, installers, CI, ৫৩টি অটোমেটেড টেস্ট।
+
+**বাকি ~১০% — শুধু আপনার মেশিন/অ্যাকাউন্ট লাগে (ক্লাউড থেকে অসম্ভব):**
+1. আসল Windows PC-তে install + টেস্ট (Remote Control যুক্ত করলে আমি করব)।
+2. DNS/WFP system-wide execution আসল মেশিনে টেস্ট করে চালু করা (builder তৈরি আছে)।
+3. Code signing (Windows OV/EV + macOS notarization) — certificate কিনতে হবে।
+4. পেমেন্ট gateway (bKash/Nagad/Stripe) — webhook template তৈরি, gateway অ্যাকাউন্ট দিলে লাগাব।
+
+## PC যুক্ত হলে আমি যা করব (ক্রম)
+1. CI artifact `Content Guard-windows` অথবা সরাসরি build → `install.ps1` (Administrator) দিয়ে install।
+2. আসল Windows-এ যাচাই: service চালু, hosts blocking, app বন্ধ, SafeSearch, uninstall-protection, trial→premium।
+3. DNS execution + পরে WFP system-wide — আসল মেশিনে টেস্ট করে ধাপে ধাপে চালু।
