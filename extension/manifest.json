@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "ContentGuard",
-  "version": "0.1.0",
-  "description": "Companion extension for the ContentGuard desktop blocker: block pages, path/keyword/allowlist blocking and hiding Shorts, Reels and feeds.",
+  "name": "Content Guard",
+  "version": "1.0.0",
+  "description": "Companion for the Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.",
   "icons": {
     "128": "icons/icon.png",
-    "48": "icons/icon48.png"
+    "48": "icons/icon48.png",
+    "16": "icons/icon16.png"
   },
   "permissions": [
     "declarativeNetRequest",
@@ -26,7 +27,7 @@
   },
   "incognito": "spanning",
   "action": {
-    "default_title": "ContentGuard",
+    "default_title": "Content Guard",
     "default_popup": "popup.html"
   },
   "content_scripts": [
