@@ -31,6 +31,11 @@ class SecureStore(context: Context) {
         get() = prefs.getString(KEY_API, null)
         set(v) = prefs.edit().putString(KEY_API, v).apply()
 
+    /** FCM registration token, set by FcmService.onNewToken once Firebase is enabled. */
+    var pushToken: String?
+        get() = prefs.getString(KEY_PUSH, null)
+        set(v) = prefs.edit().putString(KEY_PUSH, v).apply()
+
     val isEnrolled: Boolean get() = deviceJwt != null
 
     fun clear() = prefs.edit().clear().apply()
@@ -39,5 +44,6 @@ class SecureStore(context: Context) {
         private const val KEY_JWT = "device_jwt"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_API = "api_base_url"
+        private const val KEY_PUSH = "push_token"
     }
 }

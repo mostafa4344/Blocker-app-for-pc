@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase.js";
 import { callFunction } from "../lib/functions.js";
 import { Shell } from "./Dashboard.jsx";
@@ -11,10 +11,12 @@ import { Shell } from "./Dashboard.jsx";
  */
 export default function ChildDetail() {
   const { childId } = useParams();
+  const navigate = useNavigate();
   const [child, setChild] = useState(null);
   const [policy, setPolicy] = useState(null);
   const [devices, setDevices] = useState([]);
   const [usage, setUsage] = useState([]);
+  const [lastLoc, setLastLoc] = useState(null);
   const [blockPkg, setBlockPkg] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -30,21 +32,34 @@ export default function ChildDetail() {
       .from("devices").select("id, label, last_seen_at, revoked_at").eq("child_id", childId);
     setDevices(d ?? []);
     await loadUsage(d ?? []);
+    await loadLocation(d ?? []);
+  }
+
+  async function loadLocation(devs) {
+    const ids = devs.map((x) => x.id);
+    if (ids.length === 0) { setLastLoc(null); return; }
+    const { data } = await supabase
+      .from("locations")
+      .select("lat, lon, accuracy_m, occurred_at")
+      .in("device_id", ids)
+      .order("occurred_at", { ascending: false })
+      .limit(1);
+    setLastLoc(data?.[0] ?? null);
   }
 
   async function loadUsage(devs) {
     const ids = devs.map((x) => x.id);
     if (ids.length === 0) { setUsage([]); return; }
-    const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const sinceDay = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
     const { data } = await supabase
       .from("usage_events")
-      .select("package_name, foreground_s, occurred_at")
+      .select("package_name, foreground_s, day")
       .in("device_id", ids)
-      .gte("occurred_at", since)
+      .gte("day", sinceDay)
       .limit(5000);
-    // Aggregate per package (keep the max cumulative per day-ish; simple sum here).
+    // One row per (device, package, day) now, so summing is correct.
     const totals = {};
-    for (const r of data ?? []) totals[r.package_name] = Math.max(totals[r.package_name] ?? 0, r.foreground_s);
+    for (const r of data ?? []) totals[r.package_name] = (totals[r.package_name] ?? 0) + r.foreground_s;
     const list = Object.entries(totals)
       .map(([pkg, secs]) => ({ pkg, secs }))
       .sort((a, b) => b.secs - a.secs)
@@ -103,12 +118,22 @@ export default function ChildDetail() {
     load();
   }
 
+  async function deleteChild() {
+    if (!confirm(`Delete ${child.name}? This removes their devices, policy and reports. This cannot be undone.`)) return;
+    const { error } = await supabase.from("children").delete().eq("id", childId);
+    if (error) { setErr(error.message); return; }
+    navigate("/");
+  }
+
   if (!child) return <Shell><p>Loading…</p></Shell>;
   if (!policy) return <Shell><p>No active policy found for {child.name}.</p></Shell>;
 
   return (
     <Shell>
-      <h2>{child.name}</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>{child.name}</h2>
+        <button onClick={deleteChild} style={{ color: "#b00" }}>Delete child</button>
+      </div>
 
       <section style={box}>
         <h3>Screen time</h3>
@@ -162,6 +187,18 @@ export default function ChildDetail() {
             onChange={(e) => setField("location_enabled", e.target.checked)} />
           {" "}Share this device's location (child is notified on their phone)
         </label>
+        {lastLoc && (
+          <p style={{ marginTop: 8, fontSize: 14 }}>
+            Last location:{" "}
+            <a href={`https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lon}`}
+               target="_blank" rel="noreferrer">
+              {lastLoc.lat.toFixed(5)}, {lastLoc.lon.toFixed(5)}
+            </a>{" "}
+            <span style={{ color: "#888" }}>
+              ({new Date(lastLoc.occurred_at).toLocaleString()})
+            </span>
+          </p>
+        )}
       </section>
 
       <button onClick={save} style={{ padding: "8px 16px" }}>Save policy</button>

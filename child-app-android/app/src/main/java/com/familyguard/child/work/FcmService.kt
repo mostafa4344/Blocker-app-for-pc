@@ -11,6 +11,8 @@ package com.familyguard.child.work
 // policy/commands from device-sync itself.
 
 /*
+import com.familyguard.child.net.SecureStore
+
 class FcmService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         when (message.data["type"]) {
@@ -18,7 +20,10 @@ class FcmService : FirebaseMessagingService() {
         }
     }
     override fun onNewToken(token: String) {
-        // TODO(phase1): upload the new FCM token via device-sync so push-command can reach us.
+        // Persist it; the next device-sync sends it as status.push_token, so
+        // push-command can reach this device.
+        SecureStore(applicationContext).pushToken = token
+        SyncWorker.syncNow(applicationContext)
     }
 }
 */

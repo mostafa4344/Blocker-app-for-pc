@@ -31,12 +31,23 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val policyStore = PolicyStore(applicationContext)
         val usage = UsageTracker(applicationContext)
 
+        val status = JSONObject()
+            .put("battery_pct", Battery.level(applicationContext))
+            .put("foreground_app", usage.currentForegroundApp())
+        store.pushToken?.let { status.put("push_token", it) }
+
         val payload = JSONObject()
             .put("known_policy_version", policyStore.version)
-            .put("status", JSONObject()
-                .put("battery_pct", Battery.level(applicationContext))
-                .put("foreground_app", usage.currentForegroundApp()))
+            .put("status", status)
             .put("usage", usageBatch(usage))
+
+        // Location only when the active policy enables it (and permission granted).
+        val policy = com.familyguard.child.policy.PolicyMapper.fromJson(policyStore.load())
+        if (policy.locationEnabled) {
+            com.familyguard.child.policy.LocationReporter(applicationContext).lastKnownPoint()?.let {
+                payload.put("locations", JSONArray().put(it))
+            }
+        }
 
         return api.sync(payload).fold(
             onSuccess = { body ->
@@ -55,9 +66,9 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
     }
 
     /**
-     * Today's per-app foreground seconds as the usage_events batch shape.
-     * TODO(phase2.1): send deltas since last sync, not cumulative totals, and
-     * have the backend upsert a daily bucket — otherwise reports double-count.
+     * Today's per-app cumulative foreground seconds. The backend UPSERTs these
+     * onto the (device, package, day) row, so sending cumulative totals each
+     * sync is correct — repeated syncs overwrite, never double-count.
      */
     private fun usageBatch(usage: UsageTracker): JSONArray {
         val arr = JSONArray()

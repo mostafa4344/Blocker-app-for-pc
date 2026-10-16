@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  web:
+    name: Parent web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: parent-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: parent-web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Fail if secrets leaked into the bundle
+        run: |
+          if grep -rqE 'service_role|SERVICE_ROLE|sb_secret_' dist; then
+            echo "A server secret appears in the built web bundle!"; exit 1
+          fi

@@ -22,8 +22,9 @@ Deno.serve(async (req) => {
 
   let body: {
     known_policy_version?: number;
-    status?: { battery_pct?: number; foreground_app?: string };
+    status?: { battery_pct?: number; foreground_app?: string; push_token?: string };
     usage?: Array<{ package_name: string; foreground_s: number; occurred_at: string }>;
+    locations?: Array<{ lat: number; lon: number; accuracy_m?: number; occurred_at: string }>;
     ack_command_ids?: string[];
   } = {};
   try {
@@ -53,22 +54,43 @@ Deno.serve(async (req) => {
       .in("id", body.ack_command_ids.slice(0, 100));
   }
 
-  // Update live status.
-  await db.from("devices").update({
+  // Update live status. Only overwrite push_token when one was sent.
+  const statusUpdate: Record<string, unknown> = {
     last_seen_at: new Date().toISOString(),
     battery_pct: body.status?.battery_pct ?? null,
     foreground_app: body.status?.foreground_app ?? null,
-  }).eq("id", deviceId);
+  };
+  if (body.status?.push_token) statusUpdate.push_token = body.status.push_token;
+  await db.from("devices").update(statusUpdate).eq("id", deviceId);
 
-  // Store usage batch (bounded; validate before trusting).
+  // Store opt-in location points (the parent enables this; policy gates sending).
+  if (Array.isArray(body.locations) && body.locations.length > 0) {
+    const locRows = body.locations.slice(0, 50)
+      .filter((l) => Number.isFinite(l.lat) && Number.isFinite(l.lon))
+      .map((l) => ({
+        device_id: deviceId,
+        lat: l.lat,
+        lon: l.lon,
+        accuracy_m: Number.isFinite(l.accuracy_m as number) ? l.accuracy_m : null,
+        occurred_at: l.occurred_at ?? new Date().toISOString(),
+      }));
+    if (locRows.length > 0) await db.from("locations").insert(locRows);
+  }
+
+  // Store usage batch (bounded; validate before trusting). The device sends
+  // today's cumulative seconds per package; UPSERT onto the (device,package,day)
+  // row so repeated syncs overwrite instead of accumulating.
   if (Array.isArray(body.usage) && body.usage.length > 0) {
+    const today = new Date().toISOString().slice(0, 10); // UTC day
+    const nowIso = new Date().toISOString();
     const rows = body.usage.slice(0, 500).map((u) => ({
       device_id: deviceId,
       package_name: String(u.package_name).slice(0, 255),
       foreground_s: Math.max(0, Math.min(86400, Number(u.foreground_s) || 0)),
-      occurred_at: u.occurred_at,
+      day: today,
+      occurred_at: nowIso,
     }));
-    await db.from("usage_events").insert(rows);
+    await db.from("usage_events").upsert(rows, { onConflict: "device_id,package_name,day" });
   }
 
   // Active policy (only return the doc if the device's version is stale).

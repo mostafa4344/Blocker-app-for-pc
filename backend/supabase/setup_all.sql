@@ -1,7 +1,7 @@
 -- =============================================================
 -- FamilyGuard — one-shot setup (schema + RLS).
 -- Paste this whole file into the Supabase SQL editor and Run.
--- (Equivalent to running schema.sql then policies.sql in order.)
+-- Optionally also run retention.sql for scheduled data cleanup.
 -- =============================================================
 
 -- ============================================================================
@@ -169,15 +169,20 @@ create index if not exists idx_cmds_device_undelivered
 -- ---------------------------------------------------------------------------
 -- telemetry: usage_events, heartbeats, locations (device -> backend)
 -- ---------------------------------------------------------------------------
+-- Daily per-app usage. One row per (device, package, day). The device reports
+-- today's cumulative foreground seconds each sync; the backend UPSERTs onto the
+-- day's row, so repeated syncs overwrite (not add) — no double counting.
 create table if not exists usage_events (
   id            bigint generated always as identity primary key,
   device_id     uuid not null references devices(id) on delete cascade,
   package_name  text not null,
-  foreground_s  int  not null default 0,   -- seconds in foreground in this bucket
-  occurred_at   timestamptz not null,      -- bucket start
-  created_at    timestamptz not null default now()
+  foreground_s  int  not null default 0,   -- cumulative foreground seconds for `day`
+  day           date not null default (now() at time zone 'utc')::date,
+  occurred_at   timestamptz not null default now(),  -- last update time
+  created_at    timestamptz not null default now(),
+  unique (device_id, package_name, day)
 );
-create index if not exists idx_usage_device_time on usage_events(device_id, occurred_at desc);
+create index if not exists idx_usage_device_day on usage_events(device_id, day desc);
 
 create table if not exists heartbeats (
   id            bigint generated always as identity primary key,
