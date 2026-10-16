@@ -1,5 +1,5 @@
 // Protection (uninstall/settings), general settings, and the Premium/account page.
-import { S, $, $$, t, num, esc, api, act, cfg, clone, fmtTime, openModal, closeModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
+import { S, $, $$, t, num, esc, api, act, cfg, clone, refresh, fmtTime, openModal, closeModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
 
 const LEVELS = ["off", "mindful", "committed"];
 const FILTERS = ["youtube_shorts", "youtube_recommendations", "youtube_comments", "facebook_feed", "facebook_reels", "instagram_reels", "x_feed", "linkedin_feed"];
@@ -184,6 +184,12 @@ export function renderSettings(main) {
         ${lic.last_error ? `<span class="badge danger">${esc(lic.last_error)}</span>` : ""}
       </details>
 
+      <details class="card stack"><summary>${t("backup_title")}</summary>
+        <p class="hint">${t("backup_help")}</p>
+        <textarea id="s-backup" spellcheck="false" readonly>${esc(JSON.stringify(cfg(), null, 2))}</textarea>
+        <div class="row"><button class="btn" id="s-copy">${t("backup_copy")}</button><button class="btn" id="s-import">${t("backup_import")}</button></div>
+      </details>
+
       <section class="card stack"><h2>${t("extension_title")}</h2><p class="muted">${t("extension_help")}</p></section>
       <p class="muted">Content Guard v${esc(S.status.version)}</p>
     </div>`;
@@ -197,4 +203,33 @@ export function renderSettings(main) {
     c.settings.backend_url = $("#s-backend", main).value.trim();
     c.settings.backend_key = $("#s-backend-key", main).value.trim();
   }));
+  $("#s-copy", main)?.addEventListener("click", () => {
+    const ta = $("#s-backup", main);
+    ta.select();
+    navigator.clipboard?.writeText(ta.value).then(() => toast(t("saved")), () => {});
+  });
+  $("#s-import", main)?.addEventListener("click", () => {
+    openModal(
+      `<h2>${t("backup_import")}</h2><p class="muted">${t("backup_import_help")}</p>
+       <textarea id="imp" spellcheck="false" placeholder='{ "block_lists": [...] }'></textarea>
+       <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="imp-go">${t("backup_import")}</button></div>`,
+      (m) => $("#imp-go", m).addEventListener("click", async () => {
+        let parsed;
+        try {
+          parsed = JSON.parse($("#imp", m).value);
+        } catch {
+          return toast(t("backup_bad_json"), true);
+        }
+        try {
+          await api("PUT", "/api/config", parsed);
+          await refresh();
+          S.render();
+          closeModal();
+          toast(t("saved"));
+        } catch (e) {
+          toast(errMsg(e), true);
+        }
+      }),
+    );
+  });
 }
