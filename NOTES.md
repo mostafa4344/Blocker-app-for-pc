@@ -173,3 +173,31 @@ blocking engine, schedule, limit, lock (সব ধরন), time-delay protection
   `chrome://extensions` → Developer mode → Load unpacked দিয়ে লোড করতে হবে
   (installer `...\ContentGuard\extension` ফোল্ডার extract করে রাখে)। Chrome Web Store
   publish করলে এক-ক্লিকে হবে (আপনার dev account লাগবে)।
+
+# আপডেট — ১৬ অক্টোবর ২০২৬ (অষ্টম ধাপ): extension জোর করে বসানো + bypass বন্ধ
+
+ব্যবহারকারীর দাবি: অ্যাপ থেকে এক ক্লিকে extension বসবে, protection on থাকলে user
+মুছতে পারবে না, browser/app reinstall-এও থেকে যাবে, না থাকলে ওই browser চলবে না।
+
+যা করা হলো (সব কমিট + টেস্টেড, ৩ target-এ clippy-clean):
+- **নতুন `browserpolicy` module:** browser-এর অফিসিয়াল **enterprise policy**
+  দিয়ে extension **force-install** — নিজে install হয়, "Remove" লক, browser
+  profile নয় বরং registry/managed-dir-এ থাকে (browser reinstall-এও টেকে), আর
+  agent প্রতি ~১৫ সেকেন্ডে পুনরায় বসায় (policy key মুছলেও ফিরে আসে)।
+  Windows: `HKLM\SOFTWARE\Policies\...\ExtensionInstallForcelist` (Chrome/Edge/
+  Brave/Chromium/Vivaldi) + Firefox `ExtensionSettings`. Linux: managed JSON +
+  policies.json। pure builder-গুলো unit-tested।
+- **Bypass বন্ধ:** protection on (বা কিছু locked) থাকলে এখন
+  require_browser_extension / block_unsupported_browsers / managed_extension /
+  force_safe_search — এই switch-গুলো **বন্ধ করা যায় না** (tighten-only)। আগে
+  user টিক তুলে দিয়ে ফাঁকি দিতে পারত; সেটা core lock.rs-এ বন্ধ করা হলো।
+- UI (Settings → Browser protection): "Lock the extension into my browsers"
+  switch + id/URL (advanced)। bn/en স্ট্রিং যোগ।
+
+**যা শুধু আপনার লাগবে (এটা ছাড়া force-install arm হয় না):** extension-এর স্থায়ী
+পরিচয় — (ক) Chrome Web Store/Edge/AMO-তে publish (~$৫ এককালীন), অথবা (খ) নিজে
+host। পুরো গাইড + টুল: `packaging/extension/README.md`, `derive-chromium-id.mjs`,
+`update.xml.template`। id বসালেই switch চালু হবে। নিরাপত্তার কারণে signing key
+repo-তে রাখিনি (public হলে যে কেউ আমাদের ID দিয়ে ভুয়া extension বানাতে পারত)।
+
+টেস্ট: core 31→32, agent 20→26। সব পাস।

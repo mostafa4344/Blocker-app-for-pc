@@ -165,6 +165,12 @@ export function renderSettings(main) {
         <label class="check"><input type="checkbox" id="s-ext" ${st.require_browser_extension ? "checked" : ""}>${t("require_ext")}</label>
         <label class="check"><input type="checkbox" id="s-unsup" ${st.block_unsupported_browsers ? "checked" : ""}><span>${t("block_unsupported")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
         <label class="check"><input type="checkbox" id="s-safe" ${st.force_safe_search ? "checked" : ""}><span>${t("safe_search")}<br><span class="hint">${t("safe_search_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-managed" ${st.managed_extension ? "checked" : ""}><span>${t("managed_ext")}<br><span class="hint">${t("managed_ext_help")}</span></span></label>
+        ${st.managed_extension && !browsers.managed?.ready ? `<p class="banner warn">${t("managed_ext_needs_id")}</p>` : ""}
+        <details><summary>${t("managed_ext_id")}</summary>
+          <label>${t("managed_ext_id")}<input type="text" id="s-ext-id" value="${esc(st.extension_id)}" autocomplete="off" spellcheck="false" placeholder="aaaa… (32 chars)"></label>
+          <label>${t("managed_ext_url")}<input type="url" id="s-ext-url" value="${esc(st.extension_update_url)}" placeholder="https://clients2.google.com/service/update2/crx"></label>
+        </details>
         <label>${t("dns_filter_label")}<span class="hint">${t("dns_filter_help")}</span>
           <select id="s-dns">
             <option value="off" ${st.dns_filter === "off" ? "selected" : ""}>${t("dns_off")}</option>
@@ -205,6 +211,9 @@ export function renderSettings(main) {
     c.settings.require_browser_extension = $("#s-ext", main).checked;
     c.settings.block_unsupported_browsers = $("#s-unsup", main).checked;
     c.settings.force_safe_search = $("#s-safe", main).checked;
+    c.settings.managed_extension = $("#s-managed", main).checked;
+    c.settings.extension_id = $("#s-ext-id", main).value.trim().toLowerCase();
+    c.settings.extension_update_url = $("#s-ext-url", main).value.trim();
     c.settings.dns_filter = $("#s-dns", main).value;
     c.settings.distraction_filters = $$("[data-filter]", main).filter((x) => x.checked).map((x) => x.dataset.filter);
     c.settings.backend_url = $("#s-backend", main).value.trim();

@@ -23,6 +23,8 @@ pub enum PolicyError {
     LimitLocked { id: String },
     #[error("lowering protection needs a protection request")]
     ProtectionRequiresRequest,
+    #[error("browser protection '{what}' cannot be turned off while protected")]
+    EnforcementLocked { what: String },
     #[error("session is locked")]
     SessionLocked { id: String },
     #[error("not found: {what}")]
@@ -131,6 +133,43 @@ pub fn validate_update(
     }
     if !is_at_least_as_strict(&new.protection, &old.protection) {
         return Err(PolicyError::ProtectionRequiresRequest);
+    }
+    // Browser-enforcement switches can only tighten (be turned on) while the
+    // user is protected: with protection above Off, or anything locked. This
+    // closes the "just untick 'block unsupported browsers' / 'lock extension'"
+    // bypass that a determined user would otherwise reach for.
+    let protected = old.protection.level != crate::model::ProtectionLevel::Off
+        || !locked_list_ids(old, state, now).is_empty();
+    if protected {
+        let turned_off = |o: bool, n: bool| o && !n;
+        let s_old = &old.settings;
+        let s_new = &new.settings;
+        for (what, o, n) in [
+            (
+                "require_browser_extension",
+                s_old.require_browser_extension,
+                s_new.require_browser_extension,
+            ),
+            (
+                "block_unsupported_browsers",
+                s_old.block_unsupported_browsers,
+                s_new.block_unsupported_browsers,
+            ),
+            (
+                "managed_extension",
+                s_old.managed_extension,
+                s_new.managed_extension,
+            ),
+            (
+                "force_safe_search",
+                s_old.force_safe_search,
+                s_new.force_safe_search,
+            ),
+        ] {
+            if turned_off(o, n) {
+                return Err(PolicyError::EnforcementLocked { what: what.into() });
+            }
+        }
     }
     validate_shape(new)
 }
@@ -373,6 +412,38 @@ mod tests {
         assert!(can_end_session(&r, UnlockProof::ChallengeSolved, now).is_ok());
         assert!(can_end_session(&r, UnlockProof::Restarted, now).is_err());
         assert!(start_session(&c, "a", 60, LockKind::Partner, now).is_err());
+    }
+
+    #[test]
+    fn enforcement_settings_tighten_only_while_protected() {
+        let now = Utc::now();
+        // Protected because a schedule is locked (base() has one).
+        let old = {
+            let mut c = base();
+            c.settings.block_unsupported_browsers = true;
+            c.settings.managed_extension = true;
+            c
+        };
+        // Turning a browser switch off is rejected.
+        let mut off = old.clone();
+        off.settings.block_unsupported_browsers = false;
+        assert!(matches!(
+            validate_update(&old, &off, &State::default(), now),
+            Err(PolicyError::EnforcementLocked { .. })
+        ));
+        // Turning one on (tightening) is fine.
+        let mut on = old.clone();
+        on.settings.require_browser_extension = true;
+        assert!(validate_update(&old, &on, &State::default(), now).is_ok());
+
+        // With nothing locked and protection Off, switches are free to toggle.
+        let mut unprotected = old.clone();
+        unprotected.schedules[0].locked = false;
+        unprotected.limits[0].locked = false;
+        let mut free = unprotected.clone();
+        free.settings.managed_extension = false;
+        free.settings.block_unsupported_browsers = false;
+        assert!(validate_update(&unprotected, &free, &State::default(), now).is_ok());
     }
 
     #[test]

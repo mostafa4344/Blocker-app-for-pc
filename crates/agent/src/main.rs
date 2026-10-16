@@ -9,6 +9,7 @@
 
 mod api;
 mod app;
+mod browserpolicy;
 mod dns;
 mod enforce;
 mod fingerprint;

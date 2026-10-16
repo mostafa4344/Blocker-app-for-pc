@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Chromium update manifest for self-hosting the ContentGuard extension.
+  Host this file at the URL you set as the extension "Update URL" in Settings,
+  and host the signed .crx next to it (or anywhere the codebase URL points to).
+
+  Replace:
+    __EXTENSION_ID__   the id from derive-chromium-id.mjs (32 chars, a-p)
+    __CRX_URL__        absolute https URL of the packed & signed .crx
+    __VERSION__        must match the "version" in the extension manifest.json
+-->
+<gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
+  <app appid="__EXTENSION_ID__">
+    <updatecheck codebase="__CRX_URL__" version="__VERSION__" />
+  </app>
+</gupdate>

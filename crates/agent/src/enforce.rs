@@ -21,12 +21,18 @@ pub const TICK: Duration = Duration::from_secs(2);
 /// (only when "require browser extension" is on and a block is active).
 const EXTENSION_GRACE_SECS: u64 = 90;
 const SAVE_EVERY: Duration = Duration::from_secs(20);
+/// How often the managed-browser extension policy is re-asserted so a deleted
+/// policy key is restored quickly.
+const POLICY_REASSERT: Duration = Duration::from_secs(15);
 
 pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut watcher = Watcher::new();
     let hosts_path = paths::hosts_file();
     let mut safe_search = crate::safesearch::SafeSearch::new();
     let mut applied_hosts: Option<AppliedHosts> = None;
+    // The browser-policy identity currently asserted (None = policy removed).
+    let mut applied_policy: Option<Option<crate::browserpolicy::Identity>> = None;
+    let mut last_policy_reassert = Instant::now();
     let mut closed_pids: HashSet<sysinfo::Pid> = HashSet::new();
     let mut last_save = Instant::now();
     let mut last_tick = Instant::now();
@@ -54,6 +60,36 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                 applied_hosts = Some((wanted, safe));
             }
             app.lock().hosts_status = result.map(|_| ());
+        }
+
+        // Managed-browser policy: keep the force-installed extension asserted so
+        // the user cannot remove it, or tear it down when the feature is off.
+        // `apply` is also re-run periodically so a deleted policy key is restored.
+        {
+            let s = &config.settings;
+            let wanted: Option<crate::browserpolicy::Identity> = if s.managed_extension {
+                crate::browserpolicy::Identity::from_settings(
+                    &s.extension_id,
+                    &s.extension_update_url,
+                    "",
+                )
+            } else {
+                None
+            };
+            let changed = applied_policy.as_ref() != Some(&wanted);
+            // Re-assert periodically so a deleted policy key is restored within
+            // seconds, without spawning `reg` processes on every 2 s tick.
+            let reassert_due = last_policy_reassert.elapsed() >= POLICY_REASSERT;
+            match &wanted {
+                Some(id) if changed || reassert_due => {
+                    crate::browserpolicy::apply(id);
+                    last_policy_reassert = Instant::now();
+                }
+                Some(_) => {}
+                None if changed => crate::browserpolicy::remove(),
+                None => {}
+            }
+            applied_policy = Some(wanted);
         }
 
         // Apps.

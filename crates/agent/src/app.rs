@@ -283,6 +283,16 @@ impl App {
             "browsers": {
                 "supported": SUPPORTED_BROWSERS,
                 "unsupported": UNSUPPORTED_BROWSERS,
+                "managed": {
+                    "enabled": inner.config.settings.managed_extension,
+                    // True once a usable extension identity is configured, so the
+                    // force-install policy can actually be written.
+                    "ready": crate::browserpolicy::Identity::from_settings(
+                        &inner.config.settings.extension_id,
+                        &inner.config.settings.extension_update_url,
+                        "",
+                    ).is_some(),
+                },
             },
         }))
     }
