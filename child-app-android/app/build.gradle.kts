@@ -19,7 +19,7 @@ android {
         // Base URL of your deployed Supabase Edge Functions (no trailing slash).
         // Override in local.properties -> gradle reads it into BuildConfig.
         buildConfigField("String", "FUNCTIONS_URL",
-            "\"${project.findProperty("FUNCTIONS_URL") ?: "https://YOUR-PROJECT.supabase.co/functions/v1"}\"")
+            "\"${project.findProperty("FUNCTIONS_URL") ?: "https://eihaavfsupquzdxcixjb.supabase.co/functions/v1"}\"")
     }
 
     buildFeatures { buildConfig = true }
