@@ -21,8 +21,10 @@ jobs:
           cache-dependency-path: parent-web/package-lock.json
       - run: npm ci
       - run: npm run build
-      - name: Fail if secrets leaked into the bundle
+      - name: Fail if a server secret key leaked into the bundle
         run: |
-          if grep -rqE 'service_role|SERVICE_ROLE|sb_secret_' dist; then
-            echo "A server secret appears in the built web bundle!"; exit 1
+          # Match an actual secret-key value, not the role *name* "service_role"
+          # (which legitimately appears inside the minified Supabase library).
+          if grep -rqE 'sb_secret_[A-Za-z0-9_-]{10,}' dist; then
+            echo "A server secret key appears in the built web bundle!"; exit 1
           fi
