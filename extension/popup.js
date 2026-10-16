@@ -1,6 +1,6 @@
 const ext = globalThis.browser ?? chrome;
 ext.storage.local.get(["policy", "agentOnline"]).then(({ policy, agentOnline }) => {
-  const bn = policy?.language !== "en";
+  const bn = policy?.language === "bn";
   const s = document.getElementById("s");
   if (!agentOnline) s.textContent = bn ? "ContentGuard সার্ভিস পাওয়া যাচ্ছে না" : "ContentGuard service not reachable";
   else if (policy?.active?.length) s.textContent = (bn ? "ব্লক চলছে: " : "Blocking: ") + policy.active.map((a) => a.block_list_name).join(", ");

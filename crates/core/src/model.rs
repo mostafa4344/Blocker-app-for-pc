@@ -162,7 +162,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            language: "bn".into(),
+            language: "en".into(),
             goal: String::new(),
             require_browser_extension: false,
             block_unsupported_browsers: false,

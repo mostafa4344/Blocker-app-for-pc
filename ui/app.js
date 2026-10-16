@@ -65,11 +65,11 @@ S.render = render;
 
 // ---------- onboarding ----------
 
-const ob = { step: 0, language: "bn", goal: "", presets: new Set(["social", "shorts"]), level: "off" };
+const ob = { step: 0, language: "en", goal: "", presets: new Set(["social", "shorts"]), level: "off" };
 
 function startOnboarding() {
   S.onboarding = true;
-  ob.language = cfg().settings.language || "bn";
+  ob.language = cfg().settings.language || "en";
   showStep();
 }
 

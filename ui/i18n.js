@@ -422,10 +422,10 @@ export const STRINGS = {
   },
 };
 
-let lang = "bn";
+let lang = "en";
 
 export function setLanguage(l) {
-  lang = STRINGS[l] ? l : "bn";
+  lang = STRINGS[l] ? l : "en";
   document.documentElement.lang = lang;
 }
 

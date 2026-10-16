@@ -49,7 +49,7 @@ function fmt(iso, lang) {
     blockedUrl = decodeURIComponent(raw);
   } catch { /* already plain */ }
   const { policy } = await ext.storage.local.get("policy");
-  const lang = policy?.language === "en" ? "en" : "bn";
+  const lang = policy?.language === "bn" ? "bn" : "en";
   const T = TEXT[lang];
   document.documentElement.lang = lang;
   document.getElementById("title").textContent = T.title;
