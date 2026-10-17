@@ -105,28 +105,21 @@ https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vx
 
 ---
 
-## PART 3 — The ID, and when I do the rest (your timing question)
+## PART 3 — The ID is already handled
 
-**Important: the app already fully works without the ID.** The ID only switches
-on the *force-install + lock* feature. So there is no “waiting on me”:
+The ID was assigned the moment you uploaded the ZIP:
+**`pgocjgiigaakaplebgnfdbcdfaemkcnd`** (it never changes, even after approval).
 
-1. **Today:** you upload + pay. (Nothing more from me is required — it’s all ready.)
-2. **In 1–3 days:** Google approves and shows you the item’s **ID** — a 32-letter
-   string on the item’s dashboard page (and in its store URL:
-   `chrome.google.com/webstore/detail/<name>/THIS-IS-THE-ID`).
-3. **The moment you have the ID**, you do **one** thing — no waiting for me:
-   - Open the Content Guard app → **Settings → Browser protection**
-   - Paste the ID into **“Extension ID”**, leave **Update URL** empty
-   - Tick **“Lock the extension into my browsers”** → Save
-   - From then on, every Chrome/Edge/Brave on that PC auto-installs the extension,
-     locked so it can’t be removed.
+I have already **baked this id into the app as the built-in default**, so there
+is nothing to paste and nothing to wait for me on:
 
-**So the answer to “when do I give you the ID and when do you work?”** — you
-don’t have to hand it to me and wait. It’s a value you type into the app
-yourself, and it works instantly. If you’d *also* like me to bake the ID in as
-the built-in default (so new installs get it with nothing to type), just send me
-the ID in chat any time and I’ll make a one-line change and push it — a couple of
-minutes, whenever it arrives. No deadline, no blocking.
+1. **Today:** you finish the listing (PART 2) and submit for review.
+2. **In 1–3 days:** Google approves. The extension is now live in the store.
+3. From then on, in the Content Guard app, **Settings → Browser protection →
+   tick “Lock the extension into my browsers”** is all it takes — every
+   Chrome/Edge/Brave/Opera/Vivaldi on that PC then auto-installs the extension,
+   locked so it can’t be removed. No id to type (the “Extension ID” box can stay
+   empty; it only exists for advanced overrides).
 
 Edge Add-ons and Firefox AMO are optional extras later (same ZIP, free
-accounts); Chrome’s ID already covers Chrome, Brave, Vivaldi and Opera.
+accounts); the Chrome id already covers Chrome, Brave, Vivaldi and Opera.

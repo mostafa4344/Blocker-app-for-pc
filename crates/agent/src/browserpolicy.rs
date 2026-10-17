@@ -29,6 +29,12 @@ pub const EDGE_WEBSTORE_UPDATE: &str = "https://edge.microsoft.com/extensionwebs
 /// Firefox gecko id of the companion extension (from the extension manifest).
 pub const FIREFOX_EXTENSION_ID: &str = "extension@contentguard.app";
 
+/// Built-in Chrome Web Store id of the Content Guard extension. Used when the
+/// user has not set a custom `extension_id`, so turning the switch on just works
+/// on a normal install. (Assigned by the Web Store at upload; stable across
+/// publishes. Covers Chrome, Edge, Brave, Vivaldi and Opera.)
+pub const DEFAULT_CHROMIUM_ID: &str = "pgocjgiigaakaplebgnfdbcdfaemkcnd";
+
 /// The three identifiers needed to force-install the extension.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
@@ -45,8 +51,16 @@ impl Identity {
     /// update URL when only an id is given. Returns `None` when no id is set
     /// (the feature stays inert).
     pub fn from_settings(id: &str, update_url: &str, firefox_xpi: &str) -> Option<Identity> {
-        let id = id.trim();
-        if id.is_empty() || !valid_chromium_id(id) {
+        // Fall back to the built-in store id when the user hasn't set one.
+        let id = {
+            let t = id.trim();
+            if t.is_empty() {
+                DEFAULT_CHROMIUM_ID
+            } else {
+                t
+            }
+        };
+        if !valid_chromium_id(id) {
             return None;
         }
         let url = update_url.trim();
@@ -282,7 +296,11 @@ mod tests {
 
     #[test]
     fn from_settings_needs_valid_id() {
-        assert!(Identity::from_settings("", "", "").is_none());
+        // Empty id falls back to the built-in store id.
+        let def = Identity::from_settings("", "", "").unwrap();
+        assert_eq!(def.chromium_id, DEFAULT_CHROMIUM_ID);
+        assert!(valid_chromium_id(DEFAULT_CHROMIUM_ID));
+        // A malformed custom id is rejected (no silent fallback that hides typos).
         assert!(Identity::from_settings("not-a-real-id", "", "").is_none());
         let i = Identity::from_settings("abcdefghijklmnopabcdefghijklmnop", "", "").unwrap();
         // Empty update url falls back to the Web Store service.
