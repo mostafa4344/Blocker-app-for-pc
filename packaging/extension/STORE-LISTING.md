@@ -123,3 +123,105 @@ is nothing to paste and nothing to wait for me on:
 
 Edge Add-ons and Firefox AMO are optional extras later (same ZIP, free
 accounts); the Chrome id already covers Chrome, Brave, Vivaldi and Opera.
+
+---
+
+## PART 4 — Privacy tab (copy-paste, field by field)
+
+Open the **Privacy** tab (left menu of the item). Fill each box exactly:
+
+**Single purpose** (one description box):
+```
+Enforce the website and content blocking rules the user set in the Content Guard desktop app, by blocking pages and hiding distracting sections on the sites the user chose.
+```
+
+**Permission justifications** — a box appears for each permission. Paste:
+
+- `declarativeNetRequest`:
+```
+Used to block pages and network requests according to the user's own block list.
+```
+- `storage`:
+```
+Stores the user's block rules locally in the browser.
+```
+- `tabs`:
+```
+Reads the active tab's URL to decide whether that page should be blocked and to show the block page. Only applied to sites the user chose to block.
+```
+- `alarms`:
+```
+Periodically re-checks the block rules.
+```
+- `idle`:
+```
+Re-applies the rules when the user returns to the computer.
+```
+- **Host permission** `<all_urls>` (box titled "Host permission justification"):
+```
+The user can choose to block any website, so the extension must be able to check and block pages on any domain they add to their block list.
+```
+
+**Remote code** — choose **"No, I am not using remote code."** (all our code is inside the package.)
+
+**Data usage** — this is the important part, answer honestly:
+- "Does this item collect or use data?" → the extension reads the active tab URL
+  only to enforce blocking **on the user's own device**, and sends it **only to
+  localhost (127.0.0.1)** — nothing is transmitted to us or any third party.
+  - If it asks you to pick data types: you may tick **"Website content"**
+    (because it reads the URL). Do NOT tick personal info, financial, health,
+    authentication, location, etc.
+  - For its purpose, choose **"App functionality"** only. Do NOT tick
+    "Analytics", "Developer communications", "Advertising", or
+    "personalization".
+- Then tick the **three certification checkboxes** at the bottom:
+  - I do not sell or transfer user data to third parties, outside of the approved use cases
+  - I do not use or transfer user data for purposes that are unrelated to my item's single purpose
+  - I do not use or transfer user data to determine creditworthiness or for lending purposes
+
+**Privacy policy URL** (required):
+```
+https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vxxesd/PRIVACY.md
+```
+
+Click **Save draft**.
+
+---
+
+## PART 5 — Distribution tab
+
+- **Visibility:** **Public** (so anyone can install) — or **Unlisted** if you
+  prefer it not to show in search. Either works with the lock-extension feature.
+- **Distribution / regions:** **All regions.**
+- **Pricing:** **Free.**
+
+Click **Save draft.**
+
+---
+
+## PART 6 — Submit
+
+Top-right: **Submit for review.** If a box turns red, it tells you which field is
+missing — fill it and submit again. Review usually takes **1–3 days**.
+
+That is the whole process. After approval nothing else is needed from the store
+side; the lock-extension switch in the app already knows this extension's id.
+
+---
+
+## PART 7 — Which browsers does this cover?
+
+The Chrome Web Store build covers every Chromium browser — **Chrome, Edge,
+Brave, Opera, Vivaldi** (~70–75% of users). Firefox uses a different store
+(**Firefox AMO**, free) — the same code works there; we can publish it later.
+
+Even where the extension is not installed, the desktop app still enforces:
+- **Website blocking (hosts file)** — works in *every* browser, system-wide.
+- **Force SafeSearch** — every browser.
+- **App blocking** — every app.
+- **"Close unsupported browsers"** — shuts any browser that can't run the
+  extension, so it can't be used to bypass.
+
+So Firefox and others are not an open hole; they still get website + SafeSearch
+blocking, and can be closed during focus. The extension only adds the extra
+in-page features (keyword, Shorts/Reels/feed hiding) on top.
