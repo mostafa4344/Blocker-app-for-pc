@@ -210,6 +210,6 @@ extension manifest name + default_title + popup/blocked পেজ, PRIVACY.md,
 STORE-LISTING.md, store screenshot + promo। ভেতরের টেকনিক্যাল আইডি **অপরিবর্তিত**
 (crate নাম contentguard-*, বাইনারি, CONTENTGUARD_* env, data dir, Windows service,
 Firefox gecko id extension@contentguard.app, রেজিস্ট্রি policy key, Chrome extension
-id pgocjgiigaakaplebgnfdbcdfaemkcnd) — এগুলো বদলালে এখনকার ইনস্টল + extension id
+id amlkhggimheblaboilcbjdjomlceckdp) — এগুলো বদলালে এখনকার ইনস্টল + extension id
 ভাঙত। ZIP পুনরায় বানানো হয়েছে; ব্যবহারকারী Package ট্যাবে নতুন ZIP re-upload করবে
 (একই store item, একই id)।

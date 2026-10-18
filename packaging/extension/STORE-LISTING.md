@@ -108,7 +108,7 @@ https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vx
 ## PART 3 — The ID is already handled
 
 The ID was assigned the moment you uploaded the ZIP:
-**`pgocjgiigaakaplebgnfdbcdfaemkcnd`** (it never changes, even after approval).
+**`amlkhggimheblaboilcbjdjomlceckdp`** (it never changes, even after approval).
 
 I have already **baked this id into the app as the built-in default**, so there
 is nothing to paste and nothing to wait for me on:

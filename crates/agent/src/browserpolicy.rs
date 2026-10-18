@@ -33,7 +33,7 @@ pub const FIREFOX_EXTENSION_ID: &str = "extension@contentguard.app";
 /// user has not set a custom `extension_id`, so turning the switch on just works
 /// on a normal install. (Assigned by the Web Store at upload; stable across
 /// publishes. Covers Chrome, Edge, Brave, Vivaldi and Opera.)
-pub const DEFAULT_CHROMIUM_ID: &str = "pgocjgiigaakaplebgnfdbcdfaemkcnd";
+pub const DEFAULT_CHROMIUM_ID: &str = "amlkhggimheblaboilcbjdjomlceckdp";
 
 /// The three identifiers needed to force-install the extension.
 #[derive(Debug, Clone, PartialEq, Eq)]
