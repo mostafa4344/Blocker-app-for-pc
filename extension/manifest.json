@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Content Guard",
+  "name": "HTL Content Guard PC",
   "version": "1.0.0",
-  "description": "Companion for the Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.",
+  "description": "Companion for the HTL Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.",
   "icons": {
     "128": "icons/icon.png",
     "48": "icons/icon48.png",
@@ -27,7 +27,7 @@
   },
   "incognito": "spanning",
   "action": {
-    "default_title": "Content Guard",
+    "default_title": "HTL Content Guard",
     "default_popup": "popup.html"
   },
   "content_scripts": [

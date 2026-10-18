@@ -1,19 +1,19 @@
-# Content Guard — Privacy Policy
+# HTL Content Guard PC — Privacy Policy
 
 _Last updated: 2026-10-16_
 
-Content Guard is a self-control / website-and-app blocker. It is designed so
+HTL Content Guard is a self-control / website-and-app blocker. It is designed so
 that your browsing data **never leaves your computer**.
 
 ## What the browser extension does
 
-The Content Guard browser extension works only together with the Content Guard
+The HTL Content Guard browser extension works only together with the HTL Content Guard
 desktop application running on the same computer. It:
 
 - Reads the address of the page in the active tab to decide whether that page
   should be blocked, and to hide distracting sections (such as Shorts, Reels and
   feeds) according to the rules you chose in the desktop app.
-- Talks **only** to the Content Guard desktop app on your own computer, over the
+- Talks **only** to the HTL Content Guard desktop app on your own computer, over the
   local loopback address `127.0.0.1` (localhost). It does not send your browsing
   to us or to any third party.
 

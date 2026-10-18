@@ -17,7 +17,7 @@ policy) are already done. You only upload and copy-paste.
 3. Click **“Add new item”** → upload **`dist/content-guard-extension.zip`**
    (drag-and-drop the file).
 4. Fill the listing fields by copy-pasting from **PART 2** below.
-5. For the screenshots: open the Content Guard app in your browser
+5. For the screenshots: open the HTL Content Guard app in your browser
    (`http://127.0.0.1:17345`), take 1–3 screenshots (1280×800), and upload them.
    (Tell me if you want me to generate polished promo images instead.)
 6. **Visibility:** choose **Unlisted** (works for force-install, not shown in
@@ -32,12 +32,12 @@ That’s it. Google reviews it (usually **1–3 days**).
 
 **Item name**
 ```
-Content Guard
+HTL Content Guard PC
 ```
 
 **Summary (short description, ≤132 chars)**
 ```
-Companion for the Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.
+Companion for the HTL Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.
 ```
 
 **Category:** `Workflow & Planning`  (or `Productivity`)
@@ -46,10 +46,10 @@ Companion for the Content Guard blocker: block pages, keyword & path blocking, a
 
 **Detailed description**
 ```
-Content Guard helps you stay away from distracting and harmful websites so you
+HTL Content Guard helps you stay away from distracting and harmful websites so you
 can focus on what matters.
 
-This extension is the browser companion for the Content Guard desktop app. On
+This extension is the browser companion for the HTL Content Guard desktop app. On
 its own it does nothing — it works together with the desktop app running on the
 same computer, and enforces the rules you set there:
 
@@ -59,11 +59,11 @@ same computer, and enforces the rules you set there:
   recommendations, Facebook feed and Reels, Instagram Reels, X and LinkedIn feeds.
 • A friendly block page that reminds you of your goal.
 
-Your privacy is protected: the extension talks only to the Content Guard app on
+Your privacy is protected: the extension talks only to the HTL Content Guard app on
 your own computer (localhost). It does not send your browsing anywhere — there
 is no tracking, no analytics and no ads.
 
-Get the free Content Guard desktop app first; this extension connects to it
+Get the free HTL Content Guard desktop app first; this extension connects to it
 automatically.
 ```
 
@@ -115,7 +115,7 @@ is nothing to paste and nothing to wait for me on:
 
 1. **Today:** you finish the listing (PART 2) and submit for review.
 2. **In 1–3 days:** Google approves. The extension is now live in the store.
-3. From then on, in the Content Guard app, **Settings → Browser protection →
+3. From then on, in the HTL Content Guard app, **Settings → Browser protection →
    tick “Lock the extension into my browsers”** is all it takes — every
    Chrome/Edge/Brave/Opera/Vivaldi on that PC then auto-installs the extension,
    locked so it can’t be removed. No id to type (the “Extension ID” box can stay
@@ -132,7 +132,7 @@ Open the **Privacy** tab (left menu of the item). Fill each box exactly:
 
 **Single purpose** (one description box):
 ```
-Enforce the website and content blocking rules the user set in the Content Guard desktop app, by blocking pages and hiding distracting sections on the sites the user chose.
+Enforce the website and content blocking rules the user set in the HTL Content Guard desktop app, by blocking pages and hiding distracting sections on the sites the user chose.
 ```
 
 **Permission justifications** — a box appears for each permission. Paste:

@@ -203,7 +203,7 @@ export function renderSettings(main) {
       </details>
 
       <section class="card stack"><h2>${t("extension_title")}</h2><p class="muted">${t("extension_help")}</p></section>
-      <p class="muted">Content Guard v${esc(S.status.version)}</p>
+      <p class="muted">HTL Content Guard PC v${esc(S.status.version)}</p>
     </div>`;
   $("#s-save", main).addEventListener("click", () => saveConfig((c) => {
     c.settings.language = $("#s-lang", main).value;

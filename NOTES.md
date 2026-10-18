@@ -201,3 +201,15 @@ host। পুরো গাইড + টুল: `packaging/extension/README.md`, 
 repo-তে রাখিনি (public হলে যে কেউ আমাদের ID দিয়ে ভুয়া extension বানাতে পারত)।
 
 টেস্ট: core 31→32, agent 20→26। সব পাস।
+
+# আপডেট — ১৮ অক্টোবর ২০২৬: রিব্র্যান্ড → "HTL Content Guard PC"
+
+ব্যবহারকারীর সিদ্ধান্ত: অ্যাপের নাম "HTL Content Guard PC" (HTL = Halal Tech Life)।
+শুধু **ব্যবহারকারী-দৃশ্যমান** নাম বদলানো হলো — UI title/tagline, settings footer,
+extension manifest name + default_title + popup/blocked পেজ, PRIVACY.md,
+STORE-LISTING.md, store screenshot + promo। ভেতরের টেকনিক্যাল আইডি **অপরিবর্তিত**
+(crate নাম contentguard-*, বাইনারি, CONTENTGUARD_* env, data dir, Windows service,
+Firefox gecko id extension@contentguard.app, রেজিস্ট্রি policy key, Chrome extension
+id pgocjgiigaakaplebgnfdbcdfaemkcnd) — এগুলো বদলালে এখনকার ইনস্টল + extension id
+ভাঙত। ZIP পুনরায় বানানো হয়েছে; ব্যবহারকারী Package ট্যাবে নতুন ZIP re-upload করবে
+(একই store item, একই id)।

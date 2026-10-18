@@ -5,7 +5,7 @@ const TEXT = {
   bn: {
     title: "এই সাইটটি এখন ব্লক করা",
     back: "পেছনে যান",
-    open: "ContentGuard খুলুন",
+    open: "HTL Content Guard খুলুন",
     until: "পর্যন্ত",
     session: "ফোকাস সেশন চলছে",
     schedule: "সময়সূচি অনুযায়ী ব্লক",
@@ -22,7 +22,7 @@ const TEXT = {
   en: {
     title: "This site is blocked right now",
     back: "Go back",
-    open: "Open ContentGuard",
+    open: "Open HTL Content Guard",
     until: "until",
     session: "Focus session in progress",
     schedule: "Blocked by schedule",
