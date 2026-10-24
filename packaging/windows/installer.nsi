@@ -45,8 +45,26 @@ BrandingText "Halal Tech Life"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
+; Open the UI as a standalone app window (no tabs / address bar) using Edge or
+; Chrome in --app mode; fall back to the default browser if neither is found.
+!macro LaunchApp
+  StrCpy $1 ""
+  ${If} ${FileExists} "$PROGRAMFILES32\Microsoft\Edge\Application\msedge.exe"
+    StrCpy $1 "$PROGRAMFILES32\Microsoft\Edge\Application\msedge.exe"
+  ${ElseIf} ${FileExists} "$PROGRAMFILES64\Google\Chrome\Application\chrome.exe"
+    StrCpy $1 "$PROGRAMFILES64\Google\Chrome\Application\chrome.exe"
+  ${ElseIf} ${FileExists} "$PROGRAMFILES32\Google\Chrome\Application\chrome.exe"
+    StrCpy $1 "$PROGRAMFILES32\Google\Chrome\Application\chrome.exe"
+  ${EndIf}
+  ${If} $1 != ""
+    Exec '"$1" --app=${URL} --window-size=1120,820'
+  ${Else}
+    ExecShell "open" "${URL}"
+  ${EndIf}
+!macroend
+
 Function OpenApp
-  ExecShell "open" "${URL}"
+  !insertmacro LaunchApp
 FunctionEnd
 
 Section "Install"
@@ -70,13 +88,25 @@ Section "Install"
   nsExec::Exec 'sc.exe start "${SERVICE}"'
   Pop $0
 
-  ; Start-menu shortcut to the local UI.
-  FileOpen $0 "$SMPROGRAMS\${APPNAME}.url" w
-  FileWrite $0 "[InternetShortcut]$\r$\n"
-  FileWrite $0 "URL=${URL}$\r$\n"
-  FileWrite $0 "IconFile=$INSTDIR\contentguard-agent.exe$\r$\n"
-  FileWrite $0 "IconIndex=0$\r$\n"
-  FileClose $0
+  ; Start-menu shortcut that opens the UI as a standalone app window.
+  StrCpy $2 ""
+  ${If} ${FileExists} "$PROGRAMFILES32\Microsoft\Edge\Application\msedge.exe"
+    StrCpy $2 "$PROGRAMFILES32\Microsoft\Edge\Application\msedge.exe"
+  ${ElseIf} ${FileExists} "$PROGRAMFILES64\Google\Chrome\Application\chrome.exe"
+    StrCpy $2 "$PROGRAMFILES64\Google\Chrome\Application\chrome.exe"
+  ${ElseIf} ${FileExists} "$PROGRAMFILES32\Google\Chrome\Application\chrome.exe"
+    StrCpy $2 "$PROGRAMFILES32\Google\Chrome\Application\chrome.exe"
+  ${EndIf}
+  ${If} $2 != ""
+    CreateShortCut "$SMPROGRAMS\${APPNAME}.lnk" "$2" "--app=${URL} --window-size=1120,820" "$INSTDIR\contentguard-agent.exe" 0
+  ${Else}
+    FileOpen $0 "$SMPROGRAMS\${APPNAME}.url" w
+    FileWrite $0 "[InternetShortcut]$\r$\n"
+    FileWrite $0 "URL=${URL}$\r$\n"
+    FileWrite $0 "IconFile=$INSTDIR\contentguard-agent.exe$\r$\n"
+    FileWrite $0 "IconIndex=0$\r$\n"
+    FileClose $0
+  ${EndIf}
 
   ; Uninstaller + Add/Remove Programs entry.
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -105,6 +135,7 @@ Section "Uninstall"
   nsExec::Exec 'sc.exe delete "${SERVICE}"'
   Pop $0
 
+  Delete "$SMPROGRAMS\${APPNAME}.lnk"
   Delete "$SMPROGRAMS\${APPNAME}.url"
   RMDir /r "$INSTDIR\extension"
   Delete "$INSTDIR\contentguard-agent.exe"
