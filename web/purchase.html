@@ -86,7 +86,7 @@
         <div class="n" id="bkashNum">01XXXXXXXXX</div>
         <button class="copy" data-copy="bkashNum">Copy</button>
       </div>
-      <div class="paybox">
+      <div class="paybox" id="nagadBox" hidden>
         <div class="muted">Nagad <small>(Personal — Send Money)</small></div>
         <div class="n" id="nagadNum">01XXXXXXXXX</div>
         <button class="copy" data-copy="nagadNum">Copy</button>
@@ -146,8 +146,8 @@
 const CONFIG = {
   SUPABASE_URL: "https://qhplhhrmathbfyejkzbr.supabase.co",
   SUPABASE_KEY: "sb_publishable_j4Ogmxj4LN9SM8J2ovPEiw_2T--cmfD",
-  BKASH: "01XXXXXXXXX",        // <-- your bKash Personal number
-  NAGAD: "01XXXXXXXXX",        // <-- your Nagad Personal number (or same)
+  BKASH: "01568689505",        // <-- your bKash Personal number
+  NAGAD: "01568689505",        // <-- your Nagad Personal number (same number here)
   PRICES: {                    // <-- edit prices freely
     monthly:  { label:"Monthly",  price:"৳199",  per:"per month" },
     yearly:   { label:"Yearly",   price:"৳999",  per:"per year", best:true },
@@ -160,7 +160,10 @@ const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 
 $("#bkashNum").textContent = CONFIG.BKASH;
-$("#nagadNum").textContent = CONFIG.NAGAD;
+if (CONFIG.NAGAD && CONFIG.NAGAD.trim()){
+  $("#nagadNum").textContent = CONFIG.NAGAD;
+  $("#nagadBox").hidden = false;
+}
 $("#year").textContent = new Date().getFullYear();
 
 $$(".copy").forEach(b => b.onclick = () => {
