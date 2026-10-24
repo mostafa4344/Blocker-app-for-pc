@@ -59,18 +59,19 @@
     <div class="step">
       <div class="num">1</div>
       <div>
-        <h3>Download</h3>
-        <p>Click the download button for the app (above / on the product page), or run the one-line
-           installer in PowerShell. Save the file somewhere you can find it, like your Downloads folder.</p>
+        <h3>Download the installer</h3>
+        <p>Click the download button to get <b>HTL-Content-Guard-PC-Setup.exe</b>. It saves to your
+           Downloads folder — just one file, nothing to unzip.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="num">2</div>
       <div>
-        <h3>Run the installer <span class="pill">needs Administrator</span></h3>
-        <p>Right-click the downloaded file → <b>Run as administrator</b>. (The app installs a background
-           service that does the blocking, so it needs admin rights once, during install.)</p>
+        <h3>Double-click it <span class="pill">one click</span></h3>
+        <p>Double-click <b>HTL-Content-Guard-PC-Setup.exe</b>. Windows asks
+           “Do you want to allow this app to make changes?” — click <b>Yes</b>. Then click
+           <b>Next → Install</b> in the setup window. That’s the whole install.</p>
       </div>
     </div>
 
@@ -112,11 +113,12 @@
   </div>
 
   <div class="card">
-    <h2>One-line installer (optional)</h2>
-    <p class="sub" style="margin-bottom:0">Open <b>PowerShell</b> and paste this (it downloads and installs for you):</p>
+    <h2>Download link</h2>
+    <p class="sub" style="margin-bottom:0">Direct download of the one-click installer:</p>
+    <span class="cmd">https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vxxesd/dist/HTL-Content-Guard-PC-Setup.exe</span>
+    <p class="hint" style="color:var(--muted);font-size:.85rem">Advanced users can instead run a one-line
+       PowerShell installer:</p>
     <span class="cmd">irm 'https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vxxesd/packaging/windows/install-online.ps1' | iex</span>
-    <p class="hint" style="color:var(--muted);font-size:.85rem">If PowerShell shows a security prompt, press
-       <kbd>R</kbd> (Run once) or type <code>Y</code> and Enter.</p>
   </div>
 
   <div class="card">

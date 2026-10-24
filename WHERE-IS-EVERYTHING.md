@@ -47,8 +47,12 @@ https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vx
 **Browser extension (source + the store ZIP you upload):**
 `extension/` and `dist/content-guard-extension.zip`
 
-**Windows app build + one-line installer:**
-`dist/ContentGuard-windows.zip`, `packaging/windows/install-online.ps1`
+**Windows ONE-CLICK installer (the easy one — double-click):**
+`dist/HTL-Content-Guard-PC-Setup.exe`
+https://raw.githubusercontent.com/mostafa4344/Blocker-app-for-pc/ccr-00759c63-vxxesd/dist/HTL-Content-Guard-PC-Setup.exe
+
+**Windows app (zip) + PowerShell installer (advanced):**
+`dist/ContentGuard-windows.zip`, `packaging/windows/install-online.ps1`, `packaging/windows/installer.nsi`
 
 **Store images (icon, screenshots, promo):**
 `packaging/extension/store-assets/`
