@@ -25,7 +25,9 @@
 Name "${APPNAME}"
 OutFile "HTL-Content-Guard-PC-Setup.exe"
 Unicode True
-InstallDir "$PROGRAMFILES64\${APPNAME}"
+; Keep the folder name stable ("ContentGuard") so upgrades overwrite in place
+; regardless of the display name.
+InstallDir "$PROGRAMFILES64\ContentGuard"
 RequestExecutionLevel admin
 BrandingText "Halal Tech Life"
 
@@ -70,14 +72,21 @@ FunctionEnd
 Section "Install"
   SetOutPath "$INSTDIR"
 
-  ; Stop an existing service before overwriting its exe.
+  ; Stop and fully remove any existing service so we can point it at the new exe
+  ; (sc create fails if the service already exists, which would keep the old exe).
   nsExec::Exec 'net stop "${SERVICE}"'
   Pop $0
+  nsExec::Exec 'sc.exe delete "${SERVICE}"'
+  Pop $0
+  Sleep 2500
+  ; Remove a stray copy left by an earlier installer that used the display name
+  ; as the folder, so we don't leave two copies behind.
+  RMDir /r "$PROGRAMFILES64\HTL Content Guard PC"
 
   File "/oname=contentguard-agent.exe" "${AGENT}"
   File /r "${EXTDIR}"
 
-  ; (Re)create the Windows service that does the blocking.
+  ; Create the Windows service pointing at the freshly installed exe.
   nsExec::Exec 'sc.exe create "${SERVICE}" binPath= "\"$INSTDIR\contentguard-agent.exe\" service" start= auto DisplayName= "${APPNAME}"'
   Pop $0
   nsExec::Exec 'sc.exe description "${SERVICE}" "HTL Content Guard PC — website and app blocker"'
