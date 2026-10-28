@@ -161,6 +161,26 @@ pub fn remove() {
     linux::remove();
 }
 
+/// Policy values that turn off private windows, per browser:
+/// (Windows registry product path, value name, value meaning "disabled").
+pub const PRIVATE_WINDOW_POLICIES: &[(&str, &str, u32)] = &[
+    (r"Google\Chrome", "IncognitoModeAvailability", 1),
+    (r"Microsoft\Edge", "InPrivateModeAvailability", 1),
+    (r"BraveSoftware\Brave", "IncognitoModeAvailability", 1),
+    (r"Chromium", "IncognitoModeAvailability", 1),
+    (r"Vivaldi", "IncognitoModeAvailability", 1),
+    (r"Mozilla\Firefox", "DisablePrivateBrowsing", 1),
+];
+
+/// Turn private / incognito windows off (`true`) or restore the default.
+/// Safe to call repeatedly; only writes when a value is missing or different.
+pub fn set_private_windows_blocked(blocked: bool) {
+    #[cfg(target_os = "windows")]
+    windows::set_private(blocked);
+    #[cfg(not(target_os = "windows"))]
+    let _ = blocked;
+}
+
 #[cfg(target_os = "windows")]
 mod windows {
     use super::{Identity, CHROMIUM_TARGETS};
@@ -211,6 +231,35 @@ mod windows {
                 &obj,
                 "/f",
             ]);
+        }
+    }
+
+    fn read_dword(path: &str, value: &str) -> Option<u32> {
+        let out = Command::new("reg")
+            .args(["query", path, "/v", value])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().find(|l| l.contains(value))?;
+        let hex = line
+            .split("REG_DWORD")
+            .nth(1)?
+            .trim()
+            .trim_start_matches("0x");
+        u32::from_str_radix(hex, 16).ok()
+    }
+
+    pub fn set_private(blocked: bool) {
+        for (product, value, disabled) in super::PRIVATE_WINDOW_POLICIES {
+            let key = format!(r"HKLM\SOFTWARE\Policies\{product}");
+            let current = read_dword(&key, value);
+            if blocked && current != Some(*disabled) {
+                let d = disabled.to_string();
+                reg(&["add", &key, "/v", value, "/t", "REG_DWORD", "/d", &d, "/f"]);
+            } else if !blocked && current.is_some() {
+                reg(&["delete", &key, "/v", value, "/f"]);
+            }
         }
     }
 

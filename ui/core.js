@@ -1,14 +1,14 @@
 // Shared UI state and helpers.
-import { t, setLanguage, getLanguage, num } from "/i18n.js";
+import { t, setLanguage, getLanguage, num, langInfo, languageOptions } from "/i18n.js";
 
-export { t, num, getLanguage };
+export { t, num, getLanguage, languageOptions };
 
 export const S = {
   status: null,
   page: "home",
   offline: false,
   onboarding: false,
-  quick: { listId: null, minutes: 60, custom: false, lock: "none" },
+  quick: { listIds: [], touched: false, minutes: 60, custom: false, lock: "none" },
   render: () => {},
 };
 
@@ -62,7 +62,7 @@ export function toast(msg, isError = false) {
   toastTimer = setTimeout(() => (el.className = ""), 3200);
 }
 
-const locale = () => (getLanguage() === "bn" ? "bn-BD" : "en-US");
+const locale = () => langInfo().locale;
 
 /** Formats a UTC ISO time, or a zone-less local time sent by the agent. */
 export function fmtTime(iso) {
@@ -71,13 +71,18 @@ export function fmtTime(iso) {
   return d.toLocaleString(locale(), sameDay ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
+/** A calendar date like "25 October 2027" (for expiry dates far away). */
+export function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+}
+
 export function fmtDur(secs) {
   secs = Math.max(0, Math.round(secs));
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   if (h > 0) return `${num(h)}${t("hours_short")} ${num(m)}${t("minutes_short")}`;
   if (m > 0) return `${num(m)}${t("minutes_short")}`;
-  return `${num(secs)}s`;
+  return `${num(secs)}${t("seconds_short")}`;
 }
 
 export const minToHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -87,6 +92,16 @@ export function hhmmToMin(v) {
 }
 export const lines = (text) => text.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 export const cfg = () => S.status.config;
+/** A ready-made list's name in the current language. */
+export function presetName(p) {
+  const k = `preset_${p.id}`;
+  const v = t(k);
+  if (v !== k) return v;
+  // A list the admin added on the server: use its Bangla name when available.
+  return getLanguage() === "bn" && p.name_bn ? p.name_bn : p.name_en;
+}
+/** Adds a ready-made list, named in the current language. */
+export const addPreset = (id) => api("POST", `/api/presets/${id}`, { name: presetName({ id, name_en: "" }) || undefined });
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 export const listName = (id) => cfg().block_lists.find((b) => b.id === id)?.name ?? "?";
 export const isLocked = (listId) => S.status.locked_list_ids.includes(listId);
@@ -95,21 +110,23 @@ export async function refresh() {
   try {
     S.status = await api("GET", "/api/status");
     S.offline = false;
-    setLanguage(S.status.config.settings.language);
+    // During onboarding the language picked on screen wins until it is saved.
+    if (!S.onboarding) setLanguage(S.status.config.settings.language);
   } catch {
     S.offline = true;
   }
 }
 
 /** Applies `mutate` to a copy of the config and sends it to the agent. */
-export async function saveConfig(mutate, okMsg = t("saved")) {
+export async function saveConfig(mutate, okMsg) {
   const next = clone(cfg());
   mutate(next);
   try {
     await api("PUT", "/api/config", next);
     await refresh();
     S.render();
-    if (okMsg) toast(okMsg);
+    // Default message is looked up after refresh, so it uses a newly chosen language.
+    if (okMsg !== null) toast(okMsg ?? t("saved"));
     return true;
   } catch (e) {
     reportError(e);

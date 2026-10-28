@@ -9,10 +9,12 @@ $ErrorActionPreference = "Stop"
 $service = "ContentGuard"
 $exe = Join-Path $InstallDir "contentguard-agent.exe"
 
-if (Get-Service -Name $service -ErrorAction SilentlyContinue) {
-    Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
-}
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+# While protection is on the running agent refuses to stop, so upgrade in place:
+# move the running exe aside (allowed on Windows), then copy the new one in.
+$old = "$exe.old"
+Remove-Item $old -Force -ErrorAction SilentlyContinue
+if (Test-Path $exe) { Move-Item $exe $old -Force }
 Copy-Item (Join-Path $Source "contentguard-agent.exe") $exe -Force
 if (Test-Path (Join-Path $Source "extension")) {
     Copy-Item (Join-Path $Source "extension") (Join-Path $InstallDir "extension") -Recurse -Force
@@ -23,9 +25,17 @@ if (-not (Get-Service -Name $service -ErrorAction SilentlyContinue)) {
     New-Service -Name $service -BinaryPathName "`"$exe`" service" -DisplayName "ContentGuard" `
         -Description "ContentGuard website and app blocker" -StartupType Automatic | Out-Null
 }
-# Restart the service automatically if it ever stops unexpectedly.
-sc.exe failure $service reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null
-Start-Service -Name $service
+sc.exe config $service binPath= "`"$exe`" service" start= auto | Out-Null
+# Restart automatically if the process ever ends (crash or forced kill).
+sc.exe failure $service reset= 86400 actions= restart/3000/restart/3000/restart/10000 | Out-Null
+sc.exe failureflag $service 1 | Out-Null
+# Restart into the new exe (normal stop when allowed, otherwise end the process
+# and let the recovery action above start the new one).
+Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+taskkill /F /IM contentguard-agent.exe 2>$null | Out-Null
+Start-Sleep -Seconds 2
+Start-Service -Name $service -ErrorAction SilentlyContinue
+Remove-Item $old -Force -ErrorAction SilentlyContinue
 
 # Start menu shortcut to the local UI.
 $shortcut = Join-Path ([Environment]::GetFolderPath("CommonStartMenu")) "Programs\ContentGuard.url"

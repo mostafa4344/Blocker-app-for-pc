@@ -11,7 +11,9 @@ use contentguard_core::matcher::normalize_app;
 use crate::app::App;
 use crate::hosts;
 use crate::paths;
-use crate::processes::{browser_family, browser_support, BrowserSupport, Watcher};
+use crate::processes::{
+    browser_brand, browser_family, browser_support, report_covers, BrowserSupport, Watcher,
+};
 
 /// Blocked host names, plus SafeSearch `(ip, host)` redirects, last written.
 type AppliedHosts = (Vec<String>, Vec<(String, String)>);
@@ -24,6 +26,8 @@ const SAVE_EVERY: Duration = Duration::from_secs(20);
 /// How often the managed-browser extension policy is re-asserted so a deleted
 /// policy key is restored quickly.
 const POLICY_REASSERT: Duration = Duration::from_secs(15);
+/// How often the hosts file is re-read to undo manual edits.
+const HOSTS_RECHECK: Duration = Duration::from_secs(6);
 
 pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut watcher = Watcher::new();
@@ -33,6 +37,11 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     // The browser-policy identity currently asserted (None = policy removed).
     let mut applied_policy: Option<Option<crate::browserpolicy::Identity>> = None;
     let mut last_policy_reassert = Instant::now();
+    let mut last_hosts_check = Instant::now();
+    let mut cached_sites: Vec<String> = Vec::new();
+    let mut cached_hosts: Vec<String> = Vec::new();
+    let mut applied_private: Option<bool> = None;
+    let mut last_private_check = Instant::now();
     let mut closed_pids: HashSet<sysinfo::Pid> = HashSet::new();
     let mut last_save = Instant::now();
     let mut last_tick = Instant::now();
@@ -44,16 +53,28 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         let (now, policy, config) = {
             let mut g = app.lock();
             let (now, policy) = app.advance(&mut g);
+            let allow_stop = app.service_stop_allowed(&g, now.utc);
+            crate::ALLOW_STOP.store(allow_stop, std::sync::atomic::Ordering::Relaxed);
             (now, policy, g.config.clone())
         };
 
         // Websites (hosts file) + SafeSearch redirects. Rewritten only when the
         // desired entries change; a failed write is retried on the next tick.
-        let wanted = hosts::hosts_for(&policy.blocked_sites);
+        // Recomputed only when the blocked sites change (big lists are costly).
+        if cached_sites != policy.blocked_sites {
+            cached_hosts = hosts::hosts_for(&policy.blocked_sites);
+            cached_sites = policy.blocked_sites.clone();
+        }
+        let wanted = cached_hosts.clone();
         let safe = safe_search
             .entries(config.settings.force_safe_search, &wanted)
             .to_vec();
-        if applied_hosts.as_ref() != Some(&(wanted.clone(), safe.clone())) {
+        // Also re-checked every few seconds so hand-edits to the hosts file
+        // (deleting our section) are undone quickly. `apply` only writes when
+        // the file content actually differs.
+        let hosts_recheck_due = last_hosts_check.elapsed() >= HOSTS_RECHECK;
+        if hosts_recheck_due || applied_hosts.as_ref() != Some(&(wanted.clone(), safe.clone())) {
+            last_hosts_check = Instant::now();
             let result = hosts::apply(&hosts_path, &wanted, &safe)
                 .map_err(|e| format!("{}: {e}", hosts_path.display()));
             if result.is_ok() {
@@ -90,6 +111,16 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                 None => {}
             }
             applied_policy = Some(wanted);
+
+            // Private / incognito windows: asserted on change and re-checked
+            // with the same cadence as the extension policy.
+            let private = s.block_private_windows;
+            let private_due = last_private_check.elapsed() >= POLICY_REASSERT;
+            if applied_private != Some(private) || (private && private_due) {
+                crate::browserpolicy::set_private_windows_blocked(private);
+                applied_private = Some(private);
+                last_private_check = Instant::now();
+            }
         }
 
         // Apps.
@@ -104,17 +135,30 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         };
         let blocking = !policy.is_empty();
         let mut blocked_hits: Vec<String> = Vec::new();
+        // A supported browser whose extension isn't reporting in (not installed,
+        // disabled, or filtering not working) counts as unsupported: with
+        // "block unsupported browsers" (or the older "require extension") on,
+        // it is closed while blocking, like any browser we cannot filter.
+        let guard_browsers =
+            config.settings.block_unsupported_browsers || config.settings.require_browser_extension;
+        let mut report: Vec<(&'static str, bool, bool)> = Vec::new();
         for p in &procs {
             let close_for_block = policy.app_blocked(&p.name);
-            let close_for_missing_extension = config.settings.require_browser_extension
-                && blocking
-                && browser_family(&p.name).is_some_and(|f| {
-                    let seen_recently = ext_seen
-                        .iter()
-                        .any(|(k, ago)| k == f.key() && *ago < EXTENSION_GRACE_SECS);
-                    let running_for = now_epoch.saturating_sub(p.start_time);
-                    !seen_recently && running_for > EXTENSION_GRACE_SECS
-                });
+            let mut close_for_missing_extension = false;
+            if let (Some((brand, display)), Some(family)) =
+                (browser_brand(&p.name), browser_family(&p.name))
+            {
+                let protected = ext_seen
+                    .iter()
+                    .any(|(k, ago)| *ago < EXTENSION_GRACE_SECS && report_covers(k, brand, family));
+                let running_for = now_epoch.saturating_sub(p.start_time);
+                close_for_missing_extension =
+                    guard_browsers && blocking && !protected && running_for > EXTENSION_GRACE_SECS;
+                let will_close = guard_browsers && blocking && !protected;
+                if !report.iter().any(|(d, _, _)| *d == display) {
+                    report.push((display, protected, will_close));
+                }
+            }
             // Browsers we cannot scan are a bypass route: close them while blocking.
             let close_for_unsupported = config.settings.block_unsupported_browsers
                 && blocking
@@ -127,6 +171,12 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             }
         }
         closed_pids.retain(|pid| procs.iter().any(|p| &p.pid == pid));
+        app.lock().browser_report = report
+            .into_iter()
+            .map(|(name, protected, closes)| {
+                serde_json::json!({ "name": name, "protected": protected, "closes": closes })
+            })
+            .collect();
 
         // Allowances for apps: count wall time while a metered app is running.
         let running: HashSet<String> = procs.iter().map(|p| normalize_app(&p.name)).collect();

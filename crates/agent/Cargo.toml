@@ -5,13 +5,15 @@ edition.workspace = true
 
 [dependencies]
 chrono.workspace = true
-contentguard-core = { version = "0.1.0", path = "../core" }
+contentguard-core = { version = "1.4.0", path = "../core" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2 = "0.11.1"
 sysinfo = "0.39.6"
 tiny_http = "0.12.0"
 ureq = { version = "3.4.2", default-features = false, features = ["json", "gzip"] }
+# Ed25519 for verifying signed updates (already used by rustls via the tls feature).
+ring = { version = "0.17", optional = true }
 
 [target."cfg(windows)".dependencies]
 windows-service = "0.8.1"
@@ -19,4 +21,4 @@ windows-service = "0.8.1"
 [features]
 default = ["tls"]
 # HTTPS to the sync backend. Disable (`--no-default-features`) to cross-check without a C toolchain.
-tls = ["ureq/rustls"]
+tls = ["ureq/rustls", "dep:ring"]

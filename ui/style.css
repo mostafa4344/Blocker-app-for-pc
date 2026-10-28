@@ -48,7 +48,7 @@ p { margin: .25rem 0 .75rem; }
 small { color: var(--muted); }
 
 .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-.sidebar { min-width: 0; background: var(--surface); border-right: 1px solid var(--border); padding: 20px 14px; position: sticky; top: 0; height: 100vh; }
+.sidebar { min-width: 0; background: var(--surface); border-inline-end: 1px solid var(--border); padding: 20px 14px; position: sticky; top: 0; height: 100vh; }
 .brand { display: flex; gap: 10px; align-items: center; margin: 0 6px 22px; }
 .brand small { display: block; font-size: .78rem; }
 .sidebar ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
@@ -92,12 +92,13 @@ main:focus { outline: none; }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+.chip.ghost { border-style: dashed; }
 .chip[aria-pressed="true"] { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
 
 label { display: grid; gap: 4px; font-weight: 500; }
 label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; cursor: pointer; }
 label.check input { margin-top: 4px; }
-input[type=text], input[type=email], input[type=number], input[type=time], input[type=url], select, textarea {
+input[type=text], input[type=email], input[type=number], input[type=time], input[type=url], input[type=tel], select, textarea {
   font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; width: 100%;
 }
 textarea { min-height: 110px; resize: vertical; font-family: ui-monospace, "Cascadia Mono", Menlo, monospace; font-size: .9rem; }
@@ -106,6 +107,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: .8rem; background: var(--surface-2); color: var(--muted); }
 .badge.lock { background: var(--warn-soft); color: var(--warn); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 .badge.danger { background: var(--danger-soft); color: var(--danger); }
 
@@ -119,7 +121,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .level h3 { margin: 0; }
 
 .preset-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-.preset { font: inherit; text-align: left; border: 2px solid var(--border); background: var(--surface); color: var(--text); border-radius: var(--radius); padding: 14px; cursor: pointer; display: grid; gap: 4px; }
+.preset { font: inherit; text-align: start; border: 2px solid var(--border); background: var(--surface); color: var(--text); border-radius: var(--radius); padding: 14px; cursor: pointer; display: grid; gap: 4px; }
 .preset .icon { font-size: 1.6rem; }
 .preset[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
 
@@ -146,9 +148,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .grid.two { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 12px; }
+  .sidebar { position: static; height: auto; border-inline-end: 0; border-bottom: 1px solid var(--border); padding: 12px; }
   .brand { margin-bottom: 10px; }
   .sidebar ul { grid-auto-flow: column; overflow-x: auto; }
   .sidebar button { white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Premium page: plans and payment box */
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.plan { font: inherit; display: grid; gap: 4px; justify-items: start; text-align: start; padding: 14px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+.plan strong { font-size: 1.35rem; }
+.plan[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+.paybox { border: 1px dashed var(--border); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 6px; }
+.paybox p { margin: 0; }
+.paynum { font-size: 1.4rem; font-weight: 700; letter-spacing: .04em; }
+
+/* (i) help buttons and their popover */
+.tip{display:inline-grid;place-items:center;width:20px;height:20px;margin-inline-start:6px;padding:0;border-radius:50%;
+  border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font:italic 700 12px/1 Georgia,serif;
+  cursor:pointer;vertical-align:middle;flex:none}
+.tip:hover,.tip[aria-expanded="true"]{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+.tip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.tip-pop{position:fixed;z-index:1000;background:var(--surface);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:0 12px 40px rgba(20,24,40,.22);padding:16px 18px 12px;max-height:72vh;
+  overflow:auto;font-size:.93rem;line-height:1.6;font-weight:400;font-style:normal;text-align:start}
+.tip-pop h3{margin:0 0 8px;font-size:1.05rem}
+.tip-pop p{margin:0 0 10px}
+.tip-pop ol{margin:4px 0 10px;padding-inline-start:20px}
+.tip-pop li{margin:4px 0}
+.tip-pop .tip-note{background:var(--primary-soft);border-radius:10px;padding:8px 10px}
+.tip-pop .tip-foot{gap:8px;border-top:1px solid var(--border);padding-top:10px;margin-top:4px}

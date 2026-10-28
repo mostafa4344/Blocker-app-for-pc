@@ -33,8 +33,16 @@ pub enum PolicyError {
     Invalid { what: String },
 }
 
+/// True when protection is on: always-on lists and enabled schedules/limits
+/// then behave as locked (they can only be made stricter). Loosening them needs
+/// lowering protection first, which goes through a protection request.
+pub fn guarded(config: &Config) -> bool {
+    config.protection.level != crate::model::ProtectionLevel::Off
+}
+
 /// Block list ids that are currently locked.
 pub fn locked_list_ids(config: &Config, state: &State, now: DateTime<Utc>) -> Vec<String> {
+    let guarded = guarded(config);
     let mut ids: Vec<String> = Vec::new();
     let mut push = |id: &String| {
         if !ids.contains(id) {
@@ -49,13 +57,18 @@ pub fn locked_list_ids(config: &Config, state: &State, now: DateTime<Utc>) -> Ve
     config
         .schedules
         .iter()
-        .filter(|s| s.enabled && s.locked)
+        .filter(|s| s.enabled && (s.locked || guarded))
         .for_each(|s| push(&s.block_list_id));
     config
         .limits
         .iter()
-        .filter(|l| l.enabled && l.locked)
+        .filter(|l| l.enabled && (l.locked || guarded))
         .for_each(|l| push(&l.block_list_id));
+    config
+        .block_lists
+        .iter()
+        .filter(|b| b.always_on && guarded)
+        .for_each(|b| push(&b.id));
     ids
 }
 
@@ -72,7 +85,7 @@ fn superset(new: &[String], old: &[String]) -> bool {
 }
 
 fn list_is_stricter(new: &BlockList, old: &BlockList) -> bool {
-    if new.allowlist_mode != old.allowlist_mode {
+    if new.allowlist_mode != old.allowlist_mode || (old.always_on && !new.always_on) {
         return false;
     }
     let sites_ok = if old.allowlist_mode {
@@ -103,22 +116,34 @@ pub fn validate_update(
             }
         }
     }
-    for o in old.schedules.iter().filter(|s| s.enabled && s.locked) {
+    let guarded = guarded(old);
+    for o in old
+        .schedules
+        .iter()
+        .filter(|s| s.enabled && (s.locked || guarded))
+    {
         let ok = new
             .schedules
             .iter()
             .find(|n| n.id == o.id)
             .is_some_and(|n| {
-                n.enabled && n.locked && n.block_list_id == o.block_list_id && covers(n, o)
+                n.enabled
+                    && (n.locked || !o.locked)
+                    && n.block_list_id == o.block_list_id
+                    && covers(n, o)
             });
         if !ok {
             return Err(PolicyError::ScheduleLocked { id: o.id.clone() });
         }
     }
-    for o in old.limits.iter().filter(|l| l.enabled && l.locked) {
+    for o in old
+        .limits
+        .iter()
+        .filter(|l| l.enabled && (l.locked || guarded))
+    {
         let ok = new.limits.iter().find(|n| n.id == o.id).is_some_and(|n| {
             n.enabled
-                && n.locked
+                && (n.locked || !o.locked)
                 && n.block_list_id == o.block_list_id
                 && n.daily_minutes <= o.daily_minutes
                 && match (o.max_opens, n.max_opens) {
@@ -164,6 +189,11 @@ pub fn validate_update(
                 "force_safe_search",
                 s_old.force_safe_search,
                 s_new.force_safe_search,
+            ),
+            (
+                "block_private_windows",
+                s_old.block_private_windows,
+                s_new.block_private_windows,
             ),
         ] {
             if turned_off(o, n) {
@@ -458,5 +488,58 @@ mod tests {
         );
         let free = start_session(&c, "a", 600, LockKind::None, now).unwrap();
         assert_eq!(free.ends_at - free.started_at, Duration::minutes(600));
+    }
+    #[test]
+    fn protection_guards_always_on_lists_and_schedules() {
+        let now = Utc::now();
+        let st = State::default();
+        let mut old = Config::default();
+        old.block_lists.push(BlockList {
+            id: "adult".into(),
+            name: "Adult".into(),
+            sites: vec!["bad.com".into()],
+            always_on: true,
+            ..Default::default()
+        });
+        old.schedules.push(Schedule {
+            id: "s".into(),
+            block_list_id: "adult".into(),
+            days: vec![0],
+            start_minute: 0,
+            end_minute: 600,
+            enabled: true,
+            locked: false,
+        });
+        // Protection off: everything may be loosened freely.
+        let mut loose = old.clone();
+        loose.block_lists[0].always_on = false;
+        loose.block_lists[0].sites.clear();
+        loose.schedules[0].enabled = false;
+        assert!(validate_update(&old, &loose, &st, now).is_ok());
+
+        // Protection on: the always-on list and the schedule are guarded.
+        old.protection = Protection {
+            level: ProtectionLevel::Committed,
+            ..Default::default()
+        };
+        loose.protection = old.protection.clone();
+        assert!(locked_list_ids(&old, &st, now).contains(&"adult".to_string()));
+        let mut off = old.clone();
+        off.block_lists[0].always_on = false;
+        assert!(validate_update(&old, &off, &st, now).is_err());
+        let mut fewer = old.clone();
+        fewer.block_lists[0].sites.clear();
+        assert!(validate_update(&old, &fewer, &st, now).is_err());
+        let mut deleted = old.clone();
+        deleted.block_lists.clear();
+        deleted.schedules.clear();
+        assert!(validate_update(&old, &deleted, &st, now).is_err());
+        let mut sched_off = old.clone();
+        sched_off.schedules[0].enabled = false;
+        assert!(validate_update(&old, &sched_off, &st, now).is_err());
+        // Tightening is still fine.
+        let mut more = old.clone();
+        more.block_lists[0].sites.push("worse.com".into());
+        assert!(validate_update(&old, &more, &st, now).is_ok());
     }
 }

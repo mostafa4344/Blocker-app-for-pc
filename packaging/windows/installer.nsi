@@ -19,7 +19,7 @@
 !define APPNAME     "HTL Content Guard PC"
 !define SERVICE     "ContentGuard"
 !define URL         "http://127.0.0.1:17345/"
-!define VERSION     "1.0.0"
+!define VERSION     "1.4.0"
 !define REGKEY      "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SERVICE}"
 
 Name "${APPNAME}"
@@ -30,6 +30,23 @@ Unicode True
 InstallDir "$PROGRAMFILES64\ContentGuard"
 RequestExecutionLevel admin
 BrandingText "Halal Tech Life"
+
+; File properties shown by Windows (and checked by antivirus reputation).
+VIProductVersion "${VERSION}.0"
+VIAddVersionKey "ProductName"     "${APPNAME}"
+VIAddVersionKey "CompanyName"     "Halal Tech Life"
+VIAddVersionKey "FileDescription" "${APPNAME} Setup"
+VIAddVersionKey "FileVersion"     "${VERSION}"
+VIAddVersionKey "ProductVersion"  "${VERSION}"
+VIAddVersionKey "LegalCopyright"  "Halal Tech Life"
+
+; Code signing (Authenticode). build-release.ps1 passes -DSIGN_CMD=... when a
+; certificate is available; NSIS then signs the uninstaller it generates and the
+; finished Setup.exe ("%1" is the file to sign).
+!ifdef SIGN_CMD
+  !uninstfinalize '${SIGN_CMD} "%1"' = 0
+  !finalize '${SIGN_CMD} "%1"' = 0
+!endif
 
 !define MUI_ICON   "appicon.ico"
 !define MUI_UNICON "appicon.ico"
@@ -72,30 +89,47 @@ FunctionEnd
 Section "Install"
   SetOutPath "$INSTDIR"
 
-  ; Stop and fully remove any existing service so we can point it at the new exe
-  ; (sc create fails if the service already exists, which would keep the old exe).
-  nsExec::Exec 'net stop "${SERVICE}"'
-  Pop $0
-  nsExec::Exec 'sc.exe delete "${SERVICE}"'
-  Pop $0
-  Sleep 2500
+  ; Upgrade in place. While protection is on the running agent refuses to stop,
+  ; so: move the running exe aside (Windows allows renaming a running exe),
+  ; drop the new one in, point the service at it, then restart the process.
+  ; Settings and blocks in %ProgramData%\ContentGuard are kept.
+  Delete "$INSTDIR\contentguard-agent.old"
+  ${If} ${FileExists} "$INSTDIR\contentguard-agent.exe"
+    Rename "$INSTDIR\contentguard-agent.exe" "$INSTDIR\contentguard-agent.old"
+  ${EndIf}
   ; Remove a stray copy left by an earlier installer that used the display name
   ; as the folder, so we don't leave two copies behind.
   RMDir /r "$PROGRAMFILES64\HTL Content Guard PC"
 
   File "/oname=contentguard-agent.exe" "${AGENT}"
-  File /r "${EXTDIR}"
+  RMDir /r "$INSTDIR\extension"
+  File /r /x test "${EXTDIR}"
 
-  ; Create the Windows service pointing at the freshly installed exe.
+  ; Create the service (fails harmlessly if it exists), then (re)configure it.
   nsExec::Exec 'sc.exe create "${SERVICE}" binPath= "\"$INSTDIR\contentguard-agent.exe\" service" start= auto DisplayName= "${APPNAME}"'
   Pop $0
-  nsExec::Exec 'sc.exe description "${SERVICE}" "HTL Content Guard PC — website and app blocker"'
+  nsExec::Exec 'sc.exe config "${SERVICE}" binPath= "\"$INSTDIR\contentguard-agent.exe\" service" start= auto DisplayName= "${APPNAME}"'
   Pop $0
-  ; Auto-restart the service if it ever stops unexpectedly.
-  nsExec::Exec 'sc.exe failure "${SERVICE}" reset= 86400 actions= restart/5000/restart/5000/restart/30000'
+  nsExec::Exec 'sc.exe description "${SERVICE}" "HTL Content Guard PC - website and app blocker"'
   Pop $0
+  ; Restart automatically if the process ever ends (crash or forced kill).
+  nsExec::Exec 'sc.exe failure "${SERVICE}" reset= 86400 actions= restart/3000/restart/3000/restart/10000'
+  Pop $0
+  nsExec::Exec 'sc.exe failureflag "${SERVICE}" 1'
+  Pop $0
+  ; Restart into the new exe: a normal stop when allowed, otherwise end the old
+  ; process and let the recovery action above start the new one.
+  nsExec::Exec 'net stop "${SERVICE}"'
+  Pop $0
+  nsExec::Exec 'taskkill /F /IM contentguard-agent.exe'
+  Pop $0
+  Sleep 1500
   nsExec::Exec 'sc.exe start "${SERVICE}"'
   Pop $0
+  Sleep 4000
+  nsExec::Exec 'sc.exe start "${SERVICE}"'
+  Pop $0
+  Delete "$INSTDIR\contentguard-agent.old"
 
   ; Start-menu shortcut that opens the UI as a standalone app window.
   StrCpy $2 ""
@@ -139,15 +173,23 @@ Section "Uninstall"
     Abort
   ${EndIf}
 
+  ; The approval lets the service accept Stop within a second or two.
+  Sleep 2500
+  nsExec::Exec 'sc.exe failure "${SERVICE}" reset= 0 actions= ""'
+  Pop $0
   nsExec::Exec 'net stop "${SERVICE}"'
   Pop $0
   nsExec::Exec 'sc.exe delete "${SERVICE}"'
+  Pop $0
+  ; Remove our hosts-file section and browser policies.
+  nsExec::Exec '"$INSTDIR\contentguard-agent.exe" cleanup'
   Pop $0
 
   Delete "$SMPROGRAMS\${APPNAME}.lnk"
   Delete "$SMPROGRAMS\${APPNAME}.url"
   RMDir /r "$INSTDIR\extension"
   Delete "$INSTDIR\contentguard-agent.exe"
+  Delete "$INSTDIR\contentguard-agent.old"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKLM "${REGKEY}"

@@ -24,6 +24,9 @@ if (Test-Path $exe) {
     }
 }
 
+# The approval lets the service accept Stop within a second or two.
+Start-Sleep -Seconds 3
+sc.exe failure $service reset= 0 actions= '""' | Out-Null
 Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
 sc.exe delete $service | Out-Null
 if (Test-Path $exe) { & $exe cleanup }

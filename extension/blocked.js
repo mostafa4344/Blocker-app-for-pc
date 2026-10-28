@@ -10,6 +10,7 @@ const TEXT = {
     session: "ফোকাস সেশন চলছে",
     schedule: "সময়সূচি অনুযায়ী ব্লক",
     limit: "আজকের সময়সীমা শেষ",
+    always: "সবসময় ব্লক করা",
     goal: "আপনার লক্ষ্য",
     quotes: [
       "ছোট ছোট মনোযোগী মুহূর্তই বড় সাফল্য তৈরি করে।",
@@ -27,6 +28,7 @@ const TEXT = {
     session: "Focus session in progress",
     schedule: "Blocked by schedule",
     limit: "Today's time limit is used up",
+    always: "Always blocked",
     goal: "Your goal",
     quotes: [
       "Small focused moments build big results.",
@@ -36,10 +38,79 @@ const TEXT = {
       "Discipline is choosing what you want most over what you want now.",
     ],
   },
+  ar: {
+    title: "هذا الموقع محظور الآن",
+    back: "رجوع",
+    open: "افتح HTL Content Guard",
+    until: "حتى",
+    session: "جلسة تركيز جارية",
+    schedule: "محظور حسب الجدول",
+    limit: "انتهى وقت اليوم",
+    always: "محظور دائمًا",
+    goal: "هدفك",
+    quotes: [
+      "اللحظات الصغيرة المركّزة تصنع نتائج كبيرة.",
+      "ما تملكه هو الدقيقة القادمة.",
+      "قُل للمؤمنين يغضّوا من أبصارهم — النور: 30",
+      "الانضباط أن تختار ما تريده أكثر على ما تريده الآن.",
+    ],
+  },
+  ur: {
+    title: "یہ سائٹ ابھی بلاک ہے",
+    back: "واپس جائیں",
+    open: "HTL Content Guard کھولیں",
+    until: "تک",
+    session: "فوکس سیشن جاری ہے",
+    schedule: "شیڈول کے مطابق بلاک",
+    limit: "آج کا وقت ختم ہو گیا",
+    always: "ہمیشہ بلاک",
+    goal: "آپ کا مقصد",
+    quotes: [
+      "چھوٹے چھوٹے توجہ والے لمحے بڑی کامیابی بناتے ہیں۔",
+      "آپ کے اختیار میں صرف اگلا ایک منٹ ہے۔",
+      "ایمان والوں سے کہہ دو کہ اپنی نگاہیں نیچی رکھیں — النور: 30",
+      "فیڈ انتظار کر سکتی ہے، آپ کے خواب نہیں۔",
+    ],
+  },
+  id: {
+    title: "Situs ini sedang diblokir",
+    back: "Kembali",
+    open: "Buka HTL Content Guard",
+    until: "sampai",
+    session: "Sesi fokus sedang berjalan",
+    schedule: "Diblokir sesuai jadwal",
+    limit: "Batas waktu hari ini sudah habis",
+    always: "Selalu diblokir",
+    goal: "Tujuan Anda",
+    quotes: [
+      "Momen fokus yang kecil membangun hasil yang besar.",
+      "Yang Anda kendalikan adalah satu menit berikutnya.",
+      "Feed bisa menunggu. Impian Anda tidak.",
+      "Disiplin adalah memilih yang paling Anda inginkan, bukan yang Anda inginkan sekarang.",
+    ],
+  },
+  tr: {
+    title: "Bu site şu anda engelli",
+    back: "Geri dön",
+    open: "HTL Content Guard'ı aç",
+    until: "kadar",
+    session: "Odak oturumu sürüyor",
+    schedule: "Zamanlamaya göre engelli",
+    limit: "Bugünkü süre doldu",
+    always: "Her zaman engelli",
+    goal: "Hedefiniz",
+    quotes: [
+      "Küçük odaklı anlar büyük sonuçlar doğurur.",
+      "Kontrol edebildiğin şey bir sonraki dakika.",
+      "Akış bekleyebilir. Hedeflerin bekleyemez.",
+      "Disiplin, en çok istediğini şu an istediğine tercih etmektir.",
+    ],
+  },
 };
+const LOCALES = { bn: "bn-BD", en: "en-US", ar: "ar", ur: "ur-PK", id: "id-ID", tr: "tr-TR" };
 
 function fmt(iso, lang) {
-  return new Date(iso).toLocaleString(lang === "bn" ? "bn-BD" : "en-US", { hour: "numeric", minute: "2-digit", weekday: "short" });
+  return new Date(iso).toLocaleString(LOCALES[lang] ?? "en-US", { hour: "numeric", minute: "2-digit", weekday: "short" });
 }
 
 (async () => {
@@ -49,9 +120,10 @@ function fmt(iso, lang) {
     blockedUrl = decodeURIComponent(raw);
   } catch { /* already plain */ }
   const { policy } = await ext.storage.local.get("policy");
-  const lang = policy?.language === "bn" ? "bn" : "en";
+  const lang = TEXT[policy?.language] ? policy.language : "en";
   const T = TEXT[lang];
   document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" || lang === "ur" ? "rtl" : "ltr";
   document.getElementById("title").textContent = T.title;
   document.getElementById("back").textContent = T.back;
   document.getElementById("open").textContent = T.open;

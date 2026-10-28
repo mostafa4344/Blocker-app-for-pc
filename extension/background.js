@@ -5,6 +5,21 @@ if (typeof buildRules === "undefined") importScripts("rules.js");
 const ext = globalThis.browser ?? chrome;
 const AGENT = "http://127.0.0.1:17345";
 const BROWSER = navigator.userAgent.includes("Firefox") ? "firefox" : "chromium";
+
+/** Which browser product this is, so the desktop app can tell e.g. Chrome
+ *  (protected) from Edge (no extension) and close only the unprotected one. */
+async function detectBrand() {
+  if (BROWSER === "firefox") return "firefox";
+  if (navigator.brave && (await navigator.brave.isBrave?.().catch(() => false))) return "brave";
+  const brands = (navigator.userAgentData?.brands ?? []).map((b) => b.brand);
+  if (brands.includes("Microsoft Edge")) return "edge";
+  if (brands.includes("Brave")) return "brave";
+  if (brands.some((b) => b.startsWith("Opera"))) return "opera";
+  if (brands.includes("YaBrowser") || /YaBrowser/.test(navigator.userAgent)) return "yandex";
+  if (brands.includes("Google Chrome")) return "chrome";
+  return "generic";
+}
+const BRAND = detectBrand();
 const BLOCKED_PAGE = ext.runtime.getURL("blocked.html");
 const HEARTBEAT_MINUTES = 0.5;
 
@@ -23,7 +38,7 @@ async function agent(path, body) {
 async function syncPolicy() {
   let policy;
   try {
-    policy = await agent(`/api/ext/policy?browser=${BROWSER}`);
+    policy = await agent(`/api/ext/policy?browser=${BROWSER}&brand=${await BRAND}`);
   } catch {
     // Agent unreachable: keep the last rules (blocks stay in force).
     await ext.storage.local.set({ agentOnline: false });
@@ -49,7 +64,7 @@ const isWeb = (url) => /^https?:\/\//i.test(url || "");
 async function report(tab, seconds, opened) {
   if (!tab || !isWeb(tab.url)) return;
   try {
-    const r = await agent("/api/ext/activity", { url: tab.url, seconds, opened, browser: BROWSER });
+    const r = await agent("/api/ext/activity", { url: tab.url, seconds, opened, browser: BROWSER, brand: await BRAND });
     if (r.blocked) {
       await ext.tabs.update(tab.id, { url: `${BLOCKED_PAGE}#${tab.url}` });
       syncPolicy();

@@ -16,22 +16,52 @@ const SUBDOMAINS: &[&str] = &[
     "", "www.", "m.", "mobile.", "web.", "touch.", "mbasic.", "old.", "new.",
 ];
 
+/// Most host names written to the hosts file (each becomes an IPv4 and an
+/// IPv6 line). Windows' DNS client slows down with very large hosts files, so
+/// with millions of installs and admin-maintained lists this is capped.
+pub const MAX_HOSTS: usize = 15_000;
+
 /// Host names to block for the given site rules.
+///
+/// Every domain gets common subdomains (www, m, mobile, …) while that fits in
+/// [`MAX_HOSTS`]; if the lists grow too big, fewer subdomains are used (bare
+/// domain + www, then the bare domain only) so every listed site stays blocked.
+/// Anything beyond the cap is left to the browser extension.
 pub fn hosts_for(sites: &[String]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for rule in sites.iter().filter_map(|s| SiteRule::parse(s)) {
+    let rules: Vec<SiteRule> = sites
+        .iter()
+        .filter_map(|s| SiteRule::parse(s))
         // Path rules must not block the whole domain; wildcard-all is extension-only.
-        if rule.path_prefix.is_some() || rule.domain.is_empty() {
-            continue;
+        .filter(|r| r.path_prefix.is_none() && !r.domain.is_empty())
+        .collect();
+    for subs in [SUBDOMAINS, &SUBDOMAINS[..2], &SUBDOMAINS[..1]] {
+        let out = expand(&rules, subs);
+        if out.len() <= MAX_HOSTS || subs.len() == 1 {
+            let mut out = out;
+            out.truncate(MAX_HOSTS);
+            return out;
         }
-        let subs: &[&str] = if rule.subdomains_only {
-            &SUBDOMAINS[1..]
+    }
+    unreachable!()
+}
+
+fn expand(rules: &[SiteRule], subs: &[&str]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for rule in rules {
+        // "*.example.com" means subdomains only: skip the bare-domain entry.
+        let list: &[&str] = if rule.subdomains_only {
+            if subs.len() > 1 {
+                &subs[1..]
+            } else {
+                &SUBDOMAINS[1..2]
+            }
         } else {
-            SUBDOMAINS
+            subs
         };
-        for sub in subs {
+        for sub in list {
             let h = format!("{sub}{}", rule.domain);
-            if !out.contains(&h) {
+            if seen.insert(h.clone()) {
                 out.push(h);
             }
         }
@@ -146,6 +176,26 @@ mod tests {
         assert!(h.contains(&"old.reddit.com".to_string()));
         assert!(!h.contains(&"reddit.com".to_string()));
         assert!(!h.iter().any(|x| x.contains("youtube")));
+    }
+
+    #[test]
+    fn big_lists_stay_within_the_cap_and_keep_every_site() {
+        // Small lists: full subdomain coverage.
+        let small: Vec<String> = (0..100).map(|i| format!("site{i}.com")).collect();
+        let h = hosts_for(&small);
+        assert_eq!(h.len(), 100 * SUBDOMAINS.len());
+        // 5,000 sites: too many for 9 subdomains each -> bare + www, all sites kept.
+        let big: Vec<String> = (0..5_000).map(|i| format!("site{i}.com")).collect();
+        let h = hosts_for(&big);
+        assert!(h.len() <= MAX_HOSTS);
+        assert!(big.iter().all(|d| h.contains(d)));
+        assert!(h.contains(&"www.site4999.com".to_string()));
+        // 40,000 sites: hard cap, bare domains only, first sites first.
+        let huge: Vec<String> = (0..40_000).map(|i| format!("site{i}.com")).collect();
+        let h = hosts_for(&huge);
+        assert_eq!(h.len(), MAX_HOSTS);
+        assert_eq!(h[0], "site0.com");
+        assert!(!h.iter().any(|x| x.starts_with("www.")));
     }
 
     #[test]

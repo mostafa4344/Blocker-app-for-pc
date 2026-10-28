@@ -6,6 +6,7 @@
 //!   contentguard-agent uninstall-check   exit 0 if uninstalling is allowed right now
 //!   contentguard-agent cleanup           remove ContentGuard entries from the hosts file
 //!   contentguard-agent status            print the current status as JSON
+//!   contentguard-agent presets-json      print the built-in ready-made lists
 
 mod api;
 mod app;
@@ -21,9 +22,17 @@ mod safesearch;
 #[cfg(windows)]
 mod service;
 mod sync;
+#[cfg(feature = "tls")]
+mod update;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+/// Whether the OS service may currently be stopped. While protection is on
+/// (and no approved uninstall is in progress) the Windows service refuses the
+/// Stop control so blocking cannot be switched off with `sc stop`. Updated by
+/// the enforcement loop; starts false so a protected install is safe at boot.
+pub static ALLOW_STOP: AtomicBool = AtomicBool::new(false);
 
 use contentguard_core::store::Store;
 
@@ -81,7 +90,38 @@ fn uninstall_check() -> std::io::Result<(bool, Arc<App>)> {
     }
 }
 
+/// Last crash, kept in the data dir and reported once (anonymously) with the
+/// next license check, then deleted.
+pub const CRASH_FILE: &str = "crash.log";
+
+/// Records panics (message + source location only) so crashes on users' PCs
+/// can be found and fixed.
+fn install_crash_hook() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let msg = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let at = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_default();
+        let line = format!(
+            "{} v{} panic at {at}: {}",
+            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ"),
+            app::VERSION,
+            msg.chars().take(300).collect::<String>()
+        );
+        let _ = std::fs::write(paths::data_dir().join(CRASH_FILE), line);
+        default(info);
+    }));
+}
+
 fn main() {
+    install_crash_hook();
     let cmd = std::env::args().nth(1).unwrap_or_else(|| "run".into());
     let code = match cmd.as_str() {
         "run" => {
@@ -118,7 +158,11 @@ fn main() {
             }
         },
         "cleanup" => match hosts::apply(&paths::hosts_file(), &[], &[]) {
-            Ok(_) => 0,
+            Ok(_) => {
+                browserpolicy::remove();
+                browserpolicy::set_private_windows_blocked(false);
+                0
+            }
             Err(e) => {
                 eprintln!("contentguard: {e}");
                 1
@@ -138,6 +182,57 @@ fn main() {
                 1
             }
         },
+        // Publisher tools for signed automatic updates (see docs/AUTO-UPDATE.md).
+        #[cfg(feature = "tls")]
+        "update-keygen" => match std::env::args().nth(2) {
+            Some(out) => match update::keygen(std::path::Path::new(&out)) {
+                Ok(public) => {
+                    println!("private key written to {out} (keep it secret, back it up)");
+                    println!("public key: {public}");
+                    0
+                }
+                Err(e) => {
+                    eprintln!("contentguard: {e}");
+                    1
+                }
+            },
+            None => {
+                eprintln!("usage: contentguard-agent update-keygen <private-key-file>");
+                64
+            }
+        },
+        #[cfg(feature = "tls")]
+        "update-sign" => {
+            let a: Vec<String> = std::env::args().skip(2).collect();
+            if a.len() != 3 {
+                eprintln!("usage: contentguard-agent update-sign <installer.exe> <version> <private-key-file>");
+                64
+            } else {
+                match update::sign(
+                    std::path::Path::new(&a[0]),
+                    &a[1],
+                    std::path::Path::new(&a[2]),
+                ) {
+                    Ok(r) => {
+                        println!("{}", serde_json::to_string_pretty(&r).unwrap_or_default());
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("contentguard: {e}");
+                        1
+                    }
+                }
+            }
+        }
+        // Prints the built-in ready-made lists (used to seed the server table).
+        "presets-json" => {
+            let defs = contentguard_core::presets::builtin_defs();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&defs).unwrap_or_default()
+            );
+            0
+        }
         "version" | "--version" => {
             println!("contentguard-agent {}", app::VERSION);
             0

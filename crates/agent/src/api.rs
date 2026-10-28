@@ -30,6 +30,11 @@ static HOME_JS: &str = include_str!("../../../ui/home.js");
 static EDITORS_JS: &str = include_str!("../../../ui/editors.js");
 static PROTECTION_JS: &str = include_str!("../../../ui/protection.js");
 static I18N_JS: &str = include_str!("../../../ui/i18n.js");
+static LANG_AR_JS: &str = include_str!("../../../ui/lang-ar.js");
+static LANG_UR_JS: &str = include_str!("../../../ui/lang-ur.js");
+static LANG_ID_JS: &str = include_str!("../../../ui/lang-id.js");
+static LANG_TR_JS: &str = include_str!("../../../ui/lang-tr.js");
+static HELP_JS: &str = include_str!("../../../ui/help.js");
 static STYLE_CSS: &str = include_str!("../../../ui/style.css");
 static ICON_SVG: &str = include_str!("../../../ui/icon.svg");
 
@@ -146,12 +151,31 @@ fn handle(app: &App, port: u16, mut req: Request) {
             "/editors.js" => Some(("text/javascript; charset=utf-8", EDITORS_JS)),
             "/protection.js" => Some(("text/javascript; charset=utf-8", PROTECTION_JS)),
             "/i18n.js" => Some(("text/javascript; charset=utf-8", I18N_JS)),
+            "/lang-ar.js" => Some(("text/javascript; charset=utf-8", LANG_AR_JS)),
+            "/lang-ur.js" => Some(("text/javascript; charset=utf-8", LANG_UR_JS)),
+            "/lang-id.js" => Some(("text/javascript; charset=utf-8", LANG_ID_JS)),
+            "/lang-tr.js" => Some(("text/javascript; charset=utf-8", LANG_TR_JS)),
+            "/help.js" => Some(("text/javascript; charset=utf-8", HELP_JS)),
             "/style.css" => Some(("text/css; charset=utf-8", STYLE_CSS)),
             "/icon.svg" | "/favicon.ico" => Some(("image/svg+xml", ICON_SVG)),
             _ => None,
         };
         if let Some((ct, body)) = static_file {
-            return respond(req, 200, ct, body.to_string());
+            // Development: serve the UI straight from disk so edits show up
+            // without rebuilding. Release installs never set this variable.
+            let name = if path == "/" {
+                "index.html"
+            } else {
+                &path[1..]
+            };
+            let name = if name == "favicon.ico" {
+                "icon.svg"
+            } else {
+                name
+            };
+            let from_disk = std::env::var_os("CONTENTGUARD_UI_DIR")
+                .and_then(|d| std::fs::read_to_string(std::path::Path::new(&d).join(name)).ok());
+            return respond(req, 200, ct, from_disk.unwrap_or_else(|| body.to_string()));
         }
     } else if header(&req, "X-ContentGuard") != Some("1") {
         return respond(
@@ -232,6 +256,22 @@ struct NewChallenge {
     purpose: String,
 }
 
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct PresetBody {
+    /// Display name in the user's language (optional).
+    name: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Purchase {
+    plan: String,
+    method: String,
+    txn_id: String,
+    contact: String,
+}
+
 #[derive(Deserialize)]
 struct Activate {
     code: String,
@@ -253,6 +293,8 @@ struct Activity {
     opened: bool,
     #[serde(default)]
     browser: String,
+    #[serde(default)]
+    brand: String,
 }
 
 fn family(name: &str) -> &'static str {
@@ -263,12 +305,24 @@ fn family(name: &str) -> &'static str {
     }
 }
 
+/// The key an extension report is recorded under: its browser brand when it
+/// sends a known one (v1.1+), otherwise just the engine family.
+fn report_key(browser: &str, brand: &str) -> &'static str {
+    crate::processes::REPORT_KEYS
+        .iter()
+        .find(|k| k.eq_ignore_ascii_case(brand))
+        .copied()
+        .unwrap_or_else(|| family(browser))
+}
+
 fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> ApiResult {
     let seg: Vec<&str> = path.trim_matches('/').split('/').collect();
     match (method, seg.as_slice()) {
         (Method::Get, ["api", "status"]) => app.status(),
         (Method::Put, ["api", "config"]) => app.update_config(parse::<Config>(body)?),
-        (Method::Post, ["api", "presets", id]) => app.add_preset(id),
+        (Method::Post, ["api", "presets", id]) => {
+            app.add_preset(id, parse::<PresetBody>(body)?.name.as_deref())
+        }
         (Method::Post, ["api", "practice", "end"]) => app.end_practice(),
 
         (Method::Post, ["api", "sessions"]) => {
@@ -299,6 +353,11 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
         (Method::Post, ["api", "requests", id, "apply"]) => app.apply_request(id),
 
         (Method::Post, ["api", "license", "refresh"]) => app.refresh_license(),
+        (Method::Post, ["api", "update", "install"]) => app.request_update(),
+        (Method::Post, ["api", "purchase"]) => {
+            let b: Purchase = parse(body)?;
+            app.submit_purchase(&b.plan, &b.method, &b.txn_id, &b.contact)
+        }
         (Method::Post, ["api", "license", "activate"]) => {
             app.activate_premium(&parse::<Activate>(body)?.code)
         }
@@ -307,12 +366,18 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
             Ok(json!({ "allowed": app.uninstall_check()? }))
         }
 
-        (Method::Get, ["api", "ext", "policy"]) => {
-            app.extension_policy(family(query_param(query, "browser").unwrap_or("")))
-        }
+        (Method::Get, ["api", "ext", "policy"]) => app.extension_policy(report_key(
+            query_param(query, "browser").unwrap_or(""),
+            query_param(query, "brand").unwrap_or(""),
+        )),
         (Method::Post, ["api", "ext", "activity"]) => {
             let b: Activity = parse(body)?;
-            app.extension_activity(family(&b.browser), &b.url, b.seconds, b.opened)
+            app.extension_activity(
+                report_key(&b.browser, &b.brand),
+                &b.url,
+                b.seconds,
+                b.opened,
+            )
         }
 
         _ => Err(ApiError::not_found("route")),

@@ -63,7 +63,16 @@ impl SiteRule {
             None => (host_part, false),
         };
         let domain = domain.trim_start_matches("www.").trim_end_matches('.');
-        if domain.is_empty() || domain.contains(char::is_whitespace) {
+        // Drop a port ("example.com:8080" blocks the whole host).
+        let domain = domain.split(':').next().unwrap_or("");
+        // Only characters a host name (and so a hosts-file line) can contain;
+        // anything else could smuggle extra entries or comments into the file.
+        if domain.is_empty()
+            || domain.len() > 253
+            || !domain
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_'))
+        {
             return None;
         }
         let path_prefix = path.filter(|p| p != "/" && !p.is_empty());
@@ -135,6 +144,18 @@ pub fn app_matches(rules: &[String], process_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_rules_that_could_inject_hosts_lines() {
+        assert!(SiteRule::parse("evil.com\n1.2.3.4 bank.com").is_none());
+        assert!(SiteRule::parse("evil.com#comment").is_none());
+        assert!(SiteRule::parse("bad site.com").is_none());
+        assert_eq!(
+            SiteRule::parse("Example.com:8080").unwrap().domain,
+            "example.com"
+        );
+        assert!(SiteRule::parse("sub_domain.example-1.com").is_some());
+    }
 
     #[test]
     fn host_extraction() {

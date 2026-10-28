@@ -1,6 +1,6 @@
 # HTL Content Guard PC — Privacy Policy
 
-_Last updated: 2026-10-16_
+_Last updated: 2026-10-25_
 
 HTL Content Guard is a self-control / website-and-app blocker. It is designed so
 that your browsing data **never leaves your computer**.
@@ -28,12 +28,35 @@ extension has no analytics and no advertising.
 - The extension stores a small amount of local configuration (your block rules,
   synced from the desktop app) in the browser's local storage on your device.
 
-## Licensing
+## What the desktop app sends to our server
 
-The separate desktop application checks your licence (free trial / premium) with
-a licensing server using an anonymous, per-install identifier. That check
-involves no browsing data and no personal identifiers such as your name or
-email. The browser extension itself performs no licensing calls.
+The desktop application contacts our server a few times a day. It sends only:
+
+- an **anonymous device identifier** (a random-looking code derived from the
+  computer, not your name, email or Windows account) — used for your free trial
+  and Premium licence;
+- the **app version**;
+- a small **anonymous health report**, so we can find and fix problems: the
+  Windows version (e.g. "Windows 10 Pro"), whether website blocking works,
+  your protection level, how many lists are always on, in how many browsers
+  the extension is connected, the result of the last automatic update, and —
+  if the app crashed — the technical crash message (no personal data).
+
+It **never** sends the sites you visit, the apps you use, your block lists,
+keystrokes, screenshots, your name, email or files.
+
+The app also downloads ready-made block lists and, when available, **automatic
+updates**. Updates are digitally signed by us; the app refuses any file whose
+signature doesn't match.
+
+## Payments
+
+If you buy Premium by card or PayPal, the payment is processed by our reseller
+Paddle (paddle.com), which acts as merchant of record and handles your payment
+details under its own privacy policy. We receive only your device identifier
+and which plan you bought, so Premium can be turned on for your computer.
+
+The browser extension itself performs no licensing or payment calls.
 
 ## Permissions and why they are needed
 

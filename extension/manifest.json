@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HTL Content Guard PC",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Companion for the HTL Content Guard blocker: block pages, keyword & path blocking, and hide Shorts, Reels and feeds.",
   "icons": {
     "128": "icons/icon.png",

@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test extension/test/*.test.js
+      - run: node --test extension/test/*.test.js ui/test/*.test.mjs
       - run: npm test
         working-directory: backend
 

@@ -4,3 +4,10 @@ backend/data/*.json
 !backend/data/.gitkeep
 *.log
 /.dev
+
+# local-only
+supabase/.temp/
+.claude/
+*.stackdump
+dist/website-upload/
+dist/website-upload.zip

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ওয়েবসাইট আপলোড গাইড</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#1f2430;--muted:#5b6473;--line:#e6e8ef;--brand:#4f46e5;--ok:#0f8a5f;--warn:#b45309;--soft:#eef0ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1117;--card:#171a22;--ink:#eef1f6;--muted:#9aa3b2;--line:#272c38;--brand:#7c74f5;--ok:#34d399;--warn:#fbbf24;--soft:#1e2140}}
+:root[data-theme="dark"]{--bg:#0f1117;--card:#171a22;--ink:#eef1f6;--muted:#9aa3b2;--line:#272c38;--brand:#7c74f5;--ok:#34d399;--warn:#fbbf24;--soft:#1e2140}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.75;font-family:"Noto Sans Bengali","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:1.75rem;margin:0 0 4px}
+.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin:16px 0}
+h2{font-size:1.2rem;margin:0 0 10px;display:flex;gap:10px;align-items:center}
+.n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:.95rem}
+code,.path{font-family:Consolas,monospace;background:var(--soft);padding:2px 7px;border-radius:6px;font-size:.92em;word-break:break-all}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+td,th{border-top:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.ok{color:var(--ok);font-weight:600}.warn{color:var(--warn);font-weight:600}
+.note{border-left:4px solid var(--brand);background:var(--soft);padding:10px 14px;border-radius:8px;margin:12px 0}
+ol li,ul li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🌐 ওয়েবসাইটে কী আপলোড করবেন</h1>
+<p class="lead">HTL Content Guard PC · ধাপে ধাপে · শেষে Chrome এক্সটেনশন নিয়ে সহজ ব্যাখ্যা</p>
+
+<div class="card">
+  <h2><span class="n">১</span>ফাইলগুলো কোথায় আছে</h2>
+  <p>আপলোডের সব ফাইল একটা ফোল্ডারে গোছানো আছে:</p>
+  <p><span class="path">dist\website-upload\content-guard-pc\</span></p>
+  <p>একসাথে একটা zip ফাইল হিসেবেও আছে: <span class="path">dist\website-upload.zip</span></p>
+  <table>
+    <tr><th>ফাইল</th><th>কী কাজ</th></tr>
+    <tr><td><code>index.html</code></td><td>মূল পাতা: ডাউনলোড বোতাম আর ইনস্টলের নিয়ম</td></tr>
+    <tr><td><code>HTL-Content-Guard-PC-Setup.exe</code></td><td>অ্যাপটা নিজে (৩.৭ MB, ভার্সন 1.4.0)</td></tr>
+    <tr><td><code>install.html</code></td><td>index.html-এর মতো একই পাতা (পুরনো লিংকের জন্য)</td></tr>
+    <tr><td><code>purchase.html</code></td><td>ওয়েবসাইট থেকে Premium কেনা (বিকাশ/নগদ)</td></tr>
+    <tr><td><code>faq.html</code></td><td>সাহায্য আর যোগাযোগ (WhatsApp / Gmail)</td></tr>
+    <tr><td><code>terms.html</code>, <code>privacy.html</code>, <code>refund.html</code></td><td>আইনি পাতা। পেমেন্ট গেটওয়ে (Paddle) আর Chrome Web Store এগুলো চায়।</td></tr>
+    <tr><td><code>legal.css</code></td><td>পাতাগুলোর ডিজাইন। এটা বাদ দিলে পাতা এলোমেলো দেখাবে।</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2><span class="n">২</span>ওয়েবসাইটে একটা ফোল্ডার বানান</h2>
+  <p>আপনার হোস্টিংয়ের File Manager-এ (cPanel, Hostinger ইত্যাদি) <code>public_html</code> ফোল্ডারের ভেতরে
+     নতুন একটা ফোল্ডার বানান। নাম দিন: <code>content-guard-pc</code></p>
+  <p>এতে ঠিকানা হবে: <span class="path">https://আপনার-সাইট.com/content-guard-pc/</span></p>
+</div>
+
+<div class="card">
+  <h2><span class="n">৩</span>ফাইলগুলো আপলোড করুন</h2>
+  <ol>
+    <li><code>content-guard-pc</code> ফোল্ডারে ঢুকুন → <strong>Upload</strong> চাপুন।</li>
+    <li><span class="path">dist\website-upload\content-guard-pc\</span> ফোল্ডারের <strong>৯টা ফাইলই</strong> বেছে নিয়ে আপলোড করুন।<br>
+      <span style="color:var(--muted)">অথবা <code>website-upload.zip</code> আপলোড করে File Manager-এ <strong>Extract</strong> চাপুন।</span></li>
+    <li>ফাইলের নাম কোনোভাবেই বদলাবেন না। ছোট-বড় হাতের অক্ষরও যেমন আছে তেমনই রাখতে হবে।</li>
+  </ol>
+  <div class="note">WordPress সাইট হলে: পাতাগুলো WordPress এডিটরে পেস্ট না করে File Manager দিয়েই ফোল্ডারে আপলোড করুন। এতে ডিজাইন ঠিক থাকবে।</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">৪</span>পরীক্ষা করুন</h2>
+  <ol>
+    <li>ব্রাউজারে খুলুন: <span class="path">https://আপনার-সাইট.com/content-guard-pc/</span></li>
+    <li><strong>⬇ Download</strong> বোতাম চাপুন। Setup.exe ডাউনলোড শুরু হলে ঠিক আছে।</li>
+    <li>উপরের <strong>Help / FAQ</strong> লিংকে গিয়ে WhatsApp লিংক চেপে দেখুন আপনার নম্বরে চ্যাট খোলে কিনা।</li>
+    <li>পাতার ঠিকানাটা আমাকে দিন। আমি অ্যাপের ভেতরে "সাহায্য" আর "ওয়েবসাইট থেকে কিনুন" লিংক হিসেবে বসিয়ে দেব।</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2><span class="n">৫</span>নতুন ভার্সন বের হলে</h2>
+  <p>যারা আগে থেকে অ্যাপ ব্যবহার করছেন, তারা <strong>নিজে থেকেই আপডেট পান</strong> (Supabase থেকে)। ওয়েবসাইটে কিছু করতে হয় না।</p>
+  <p>শুধু নতুন ডাউনলোডকারীরা যাতে নতুন ভার্সন পায়, সেজন্য ওয়েবসাইটের <code>HTL-Content-Guard-PC-Setup.exe</code>
+     ফাইলটা নতুন ফাইল দিয়ে বদলে দিন। নাম একই থাকবে।</p>
+</div>
+
+<div class="card">
+  <h2>🧩 Chrome Web Store-এ এক্সটেনশন আপলোড: আসলে কী হয়?</h2>
+  <p><strong>এক্সটেনশন আগে থেকেই আছে আর কাজ করছে।</strong> Chrome Web Store-এ ভার্সন <code>1.0.0</code> লাইভ।
+     অ্যাপ ইনস্টল হলে Chrome আর Edge-এ এক্সটেনশনটা নিজে থেকে বসে যায়, আর লক হয়ে থাকে যাতে কেউ মুছতে না পারে।</p>
+  <p>আমি নতুন ভার্সন <code>1.1.0</code> বানিয়েছি। Store-এ আপলোড করলে <strong>সব ইউজারের এক্সটেনশন Chrome নিজেই ১–২ দিনের মধ্যে আপডেট করে দেবে</strong>।</p>
+  <table>
+    <tr><th></th><th>আপলোড না করলে (1.0.0)</th><th>আপলোড করলে (1.1.0)</th></tr>
+    <tr><td>সাইট ব্লক, Shorts/Reels ব্লক, SafeSearch</td><td class="ok">✔ চলবে</td><td class="ok">✔ চলবে</td></tr>
+    <tr><td>ব্লক পাতার ভাষা</td><td>বাংলা + English</td><td class="ok">+ আরবি, উর্দু, ইন্দোনেশিয়ান, তুর্কি</td></tr>
+    <tr><td>ব্লক পাতায় "সবসময় ব্লক" কারণ দেখানো</td><td class="warn">দেখায় না</td><td class="ok">✔ দেখায়</td></tr>
+    <tr><td>কোন ব্রাউজারে (Chrome/Edge/Brave) সুরক্ষা চালু আছে, তা আলাদা করে জানা</td><td class="warn">মোটামুটি</td><td class="ok">✔ নির্ভুল</td></tr>
+  </table>
+  <p><strong>সারকথা:</strong> আপলোড না করলেও অ্যাপ কাজ করবে, কিছু ভাঙবে না। তবে নতুন সুবিধাগুলো পেতে আপলোড করা ভালো। এতে ৫ মিনিট লাগে।</p>
+  <ol>
+    <li><a href="https://chrome.google.com/webstore/devconsole">chrome.google.com/webstore/devconsole</a> খুলুন (যে Gmail দিয়ে আগে আপলোড করেছিলেন, সেটা দিয়ে)।</li>
+    <li><strong>HTL Content Guard PC</strong> এক্সটেনশনে ক্লিক করুন → বাঁ দিকে <strong>Package</strong> → <strong>Upload new package</strong>।</li>
+    <li>এই ফাইলটা দিন: <span class="path">dist\content-guard-extension.zip</span></li>
+    <li><strong>Submit for review</strong> চাপুন। Google ১–৩ দিনের মধ্যে পর্যালোচনা শেষ করবে, তারপর সবার কাছে নিজে থেকে পৌঁছে যাবে।</li>
+  </ol>
+  <div class="note">নতুন এক্সটেনশন বানাবেন না। আগেরটাতেই "Upload new package" দিন। নতুন বানালে আইডি বদলে যাবে, আর অ্যাপ সেটাকে চিনবে না।</div>
+</div>
+</div>
+</body>
+</html>

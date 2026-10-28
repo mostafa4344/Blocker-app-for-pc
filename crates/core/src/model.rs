@@ -4,7 +4,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-pub const CONFIG_VERSION: u32 = 1;
+/// 2: block lists gained `always_on` and `preset` (see `presets::migrate`).
+pub const CONFIG_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -50,6 +51,13 @@ pub struct BlockList {
     pub keywords: Vec<String>,
     /// When true, `sites` is an allowlist: everything else on the web is blocked.
     pub allowlist_mode: bool,
+    /// Blocked 24/7 without needing a session or schedule (e.g. adult content).
+    /// While protection is on, an always-on list can only be made stricter.
+    pub always_on: bool,
+    /// Id of the ready-made preset this list came from (empty for custom lists).
+    /// The UI hides the contents of sensitive presets (adult, gambling, dating)
+    /// so the block list never turns into a list of triggers.
+    pub preset: String,
 }
 
 /// Weekly recurring window during which a block list is active.
@@ -152,6 +160,10 @@ pub struct Settings {
     /// Force SafeSearch / Restricted Mode on the major search engines and YouTube
     /// (always on, not only during blocks) via the hosts file.
     pub force_safe_search: bool,
+    /// Turn off private / incognito windows in Chrome, Edge, Brave, Vivaldi,
+    /// Chromium and Firefox through their official enterprise policy, so
+    /// filtering cannot be dodged in a private window.
+    pub block_private_windows: bool,
     /// Network-wide DNS family filter: "off" (default), "family", or "strict".
     /// Points the OS resolver at a filtering DNS service (opt-in).
     pub dns_filter: String,
@@ -180,6 +192,7 @@ impl Default for Settings {
             extension_id: String::new(),
             extension_update_url: String::new(),
             force_safe_search: false,
+            block_private_windows: false,
             dns_filter: "off".into(),
             backend_url: String::new(),
             backend_key: String::new(),

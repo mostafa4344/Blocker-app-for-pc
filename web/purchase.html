@@ -77,7 +77,7 @@
   <div class="card">
     <h2>2) Send the payment (bKash / Nagad)</h2>
     <ol class="steps">
-      <li>Open the app → <b>Settings</b> → copy your <b>Install ID</b>.</li>
+      <li>Open the app → <b>Premium</b> page → copy your <b>Device ID</b> (at the bottom).</li>
       <li>Send Money to a number below (the amount of your chosen plan):</li>
     </ol>
     <div class="pay">
@@ -101,7 +101,7 @@
       <label>Your name</label>
       <input id="name" required maxlength="120" autocomplete="name">
 
-      <label>Install ID (from the app Settings)</label>
+      <label>Device ID (bottom of the app's Premium page)</label>
       <input id="install_id" required maxlength="128" placeholder="cg1... / xxxxxxxx" autocomplete="off" spellcheck="false">
 
       <label>Plan</label>
@@ -132,10 +132,14 @@
       is activated — the app updates itself, or you receive an activation code to enter on the app's Premium page.</p>
   </div>
 
-  <div class="card soon">
-    <h2>Automatic card / gateway <span class="badge" style="background:#fff3e0;color:var(--warn)">Coming soon</span></h2>
-    <p class="muted">Instant Premium via card / auto-payment will be available soon.</p>
-    <button class="btn" disabled>Coming soon</button>
+  <div class="card" id="cardPay">
+    <h2>Pay by card / PayPal — instant Premium</h2>
+    <p class="muted" id="cardInfo">Secure checkout by Paddle (our reseller handles payment and tax). Premium turns on
+      automatically within a minute — open the app's Premium page to see it.</p>
+    <label>Device ID (from the app)</label>
+    <input id="card_install_id" maxlength="128" placeholder="cg1..." autocomplete="off" spellcheck="false">
+    <button class="btn" id="cardBuy" type="button">Pay now</button>
+    <div class="err" id="cardBad"></div>
   </div>
 
   <footer>HTL Content Guard PC · Halal Tech Life · <span id="year"></span></footer>
@@ -148,10 +152,16 @@ const CONFIG = {
   SUPABASE_KEY: "sb_publishable_j4Ogmxj4LN9SM8J2ovPEiw_2T--cmfD",
   BKASH: "01568689505",        // <-- your bKash Personal number
   NAGAD: "01568689505",        // <-- your Nagad Personal number (same number here)
+  // Automatic card payments (Paddle Billing). Leave CLIENT_TOKEN empty to hide.
+  PADDLE: {
+    CLIENT_TOKEN: "",          // <-- Paddle > Developer tools > Authentication (client-side token)
+    SANDBOX: false,            // true while testing with a sandbox account
+    PRICE_IDS: { monthly: "", yearly: "", lifetime: "" },   // <-- Paddle price ids (pri_...)
+  },
   PRICES: {                    // <-- edit prices freely
-    monthly:  { label:"Monthly",  price:"৳199",  per:"per month" },
-    yearly:   { label:"Yearly",   price:"৳999",  per:"per year", best:true },
-    lifetime: { label:"Lifetime", price:"৳1999", per:"one-time" },
+    monthly:  { label:"Monthly",  price:"BDT 199",  per:"per month" },
+    yearly:   { label:"Yearly",   price:"BDT 999",  per:"per year", best:true },
+    lifetime: { label:"Lifetime", price:"BDT 1999", per:"one-time" },
   },
 };
 // ======================
@@ -225,6 +235,36 @@ $("#form").addEventListener("submit", async (e) => {
     btn.disabled = false;
   }
 });
+
+// The app opens this page as purchase.html?id=<install id>: fill it in.
+const idFromApp = new URLSearchParams(location.search).get("id") || "";
+if (/^[A-Za-z0-9-]{16,128}$/.test(idFromApp)) {
+  $("#install_id").value = idFromApp;
+  $("#card_install_id").value = idFromApp;
+}
+
+// ----- Paddle checkout -----
+const P = CONFIG.PADDLE;
+if (!P.CLIENT_TOKEN) {
+  $("#cardPay").hidden = true;
+} else {
+  const s = document.createElement("script");
+  s.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+  s.onload = () => {
+    if (P.SANDBOX) Paddle.Environment.set("sandbox");
+    Paddle.Initialize({ token: P.CLIENT_TOKEN });
+  };
+  document.head.appendChild(s);
+  $("#cardBuy").onclick = () => {
+    const bad = $("#cardBad"); bad.style.display = "none";
+    const id = $("#card_install_id").value.trim();
+    const price = P.PRICE_IDS[selectedPlan];
+    if (!/^[A-Za-z0-9-]{16,128}$/.test(id)) { bad.textContent = "Please paste the Device ID shown in the app."; bad.style.display = "block"; return; }
+    if (!price || typeof Paddle === "undefined") { bad.textContent = "Card payment isn't available right now. Please use bKash / Nagad above."; bad.style.display = "block"; return; }
+    // install_id travels as custom data; the webhook turns Premium on for it.
+    Paddle.Checkout.open({ items: [{ priceId: price, quantity: 1 }], customData: { install_id: id } });
+  };
+}
 
 renderPlans();
 </script>

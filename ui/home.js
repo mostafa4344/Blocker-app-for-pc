@@ -1,5 +1,6 @@
 // Home: status, quick start, active sessions and statistics.
 import { S, $, $$, t, num, esc, api, act, cfg, fmtTime, fmtDur, openModal, challengeModal, toast, errMsg } from "/core.js";
+import { tip } from "/help.js";
 
 function banners() {
   const s = S.status;
@@ -14,7 +15,7 @@ function banners() {
   return out.join("");
 }
 
-const reasonLabel = (a) => ({ session: t("reason_session"), schedule: t("reason_schedule"), limit: t("reason_limit") })[a.reason];
+const reasonLabel = (a) => ({ session: t("reason_session"), schedule: t("reason_schedule"), limit: t("reason_limit"), always: t("reason_always") })[a.reason];
 
 function activeLine(a) {
   let until = "";
@@ -39,13 +40,17 @@ function lockBody(kind) {
 async function startSession() {
   const q = S.quick;
   const minutes = Math.round(Number(q.minutes));
-  if (!q.listId || !(minutes > 0)) return;
+  if (q.listIds.length === 0) return toast(t("pick_at_least_one"), true);
+  if (!(minutes > 0)) return;
   if (q.lock !== "none") {
     const end = fmtTime(new Date(Date.now() + minutes * 60000).toISOString());
     const question = t("confirm_lock", { end });
     if (!window.confirm(question)) return;
   }
-  await act(() => api("POST", "/api/sessions", { block_list_id: q.listId, minutes, lock: lockBody(q.lock) }));
+  // One session per chosen list, all with the same length and lock.
+  await act(async () => {
+    for (const id of q.listIds) await api("POST", "/api/sessions", { block_list_id: id, minutes, lock: lockBody(q.lock) });
+  }, t("focus_started", { n: num(q.listIds.length) }));
 }
 
 async function stopSession(session) {
@@ -86,8 +91,15 @@ async function stopSession(session) {
 
 export function renderHome(main) {
   const s = S.status;
-  const lists = cfg().block_lists;
-  if (!S.quick.listId || !lists.some((l) => l.id === S.quick.listId)) S.quick.listId = lists[0]?.id ?? null;
+  // Always-on lists are blocked anyway; only offer the others for a session.
+  const lists = cfg().block_lists.filter((l) => !l.always_on);
+  // Keep only lists that still exist; on first view suggest the usual distractions.
+  S.quick.listIds = S.quick.listIds.filter((id) => lists.some((l) => l.id === id));
+  if (!S.quick.touched && S.quick.listIds.length === 0) {
+    const suggested = lists.filter((l) => ["social", "shorts"].includes(l.preset));
+    S.quick.listIds = (suggested.length ? suggested : lists.slice(0, 1)).map((l) => l.id);
+  }
+  const allPicked = lists.length > 0 && lists.every((l) => S.quick.listIds.includes(l.id));
   const active = s.policy.active;
   const durations = [25, 60, 120, 240];
   const lockOptions = [["none", "lock_none"], ["timer", "lock_timer"], ["random_text", "lock_random_text"], ["restart", "lock_restart"]];
@@ -101,9 +113,12 @@ export function renderHome(main) {
 
   const quick = lists.length === 0
     ? `<p class="muted">${t("add_preset")}</p><div><button class="btn primary" data-goto="lists">${t("nav_lists")}</button></div>`
-    : `<label>${t("choose_list")}
-         <select id="q-list">${lists.map((l) => `<option value="${esc(l.id)}" ${l.id === S.quick.listId ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>
-       </label>
+    : `<div class="stack"><span class="hint">${t("choose_lists")}</span>
+         <div class="chips" role="group" aria-label="${esc(t("choose_lists"))}">
+           ${lists.map((l) => `<button class="chip" data-pick="${esc(l.id)}" aria-pressed="${S.quick.listIds.includes(l.id)}">${esc(l.name)}</button>`).join("")}
+           ${lists.length > 1 ? `<button class="chip ghost" data-pick-all>${t(allPicked ? "pick_none" : "pick_all")}</button>` : ""}
+         </div>
+       </div>
        <div class="stack"><span class="hint">${t("duration")}</span>
          <div class="chips">
            ${durations.map((d) => `<button class="chip" data-min="${d}" aria-pressed="${!S.quick.custom && S.quick.minutes === d}">${durLabel(d)}</button>`).join("")}
@@ -111,14 +126,14 @@ export function renderHome(main) {
          </div>
          ${S.quick.custom ? `<label class="hint">${t("custom_minutes")}<input type="number" id="q-custom" min="1" max="10080" value="${S.quick.minutes}"></label>` : ""}
        </div>
-       <label>${t("lock_type")}
+       <label>${t("lock_type")} ${tip("lock_type")}
          <select id="q-lock">${lockOptions.map(([v, k]) => `<option value="${v}" ${S.quick.lock === v ? "selected" : ""}>${t(k)}</option>`).join("")}</select>
        </label>
        <div><button class="btn primary big" id="q-start">▶ ${t("start")}</button></div>`;
 
   const sessions = s.sessions.length === 0 ? "" : `
     <section class="card stack">
-      <h2>${t("active_sessions")}</h2>
+      <h2>${t("active_sessions")} ${tip("active_sessions")}</h2>
       <div class="list">
         ${s.sessions.map((x) => `
           <div class="item">
@@ -132,16 +147,16 @@ export function renderHome(main) {
     </section>`;
 
   main.innerHTML = `
-    ${banners()}
     <div class="stack">
       <div class="card hero ${active.length ? "active" : ""}">
         <span class="dot" aria-hidden="true"></span>
-        <div class="stack"><h2>${active.length ? t("blocking_now") : t("nothing_blocked")}</h2>${active.map(activeLine).join("")}</div>
+        <div class="stack"><h2>${active.length ? t("blocking_now") : t("nothing_blocked")} ${tip("home_status")}</h2>${active.map(activeLine).join("")}</div>
       </div>
+      ${banners()}
       <div class="grid two">
-        <section class="card stack">${`<h2>${t("quick_start")}</h2>`}${quick}</section>
+        <section class="card stack"><h2>${t("quick_start")} ${tip("quick_start")}</h2>${quick}</section>
         <section class="card stack">
-          <div class="row between"><h2>${t("today")}</h2><span class="badge">${t("blocked_attempts")}: ${num(blockedToday)}</span></div>
+          <div class="row between"><h2>${t("today")} ${tip("today_stats")}</h2><span class="badge">${t("blocked_attempts")}: ${num(blockedToday)}</span></div>
           <h3>${t("top_usage")}</h3>
           ${top.length === 0 ? `<p class="muted">${t("no_data")}</p>` : `<div class="list">${top.map((x) => `<div class="row between"><span>${esc(x.key.replace(/^(site|app):/, ""))}</span><span class="muted">${fmtDur(x.seconds)}</span></div>`).join("")}</div>`}
           <h3>${t("this_week")}</h3>
@@ -154,7 +169,18 @@ export function renderHome(main) {
   $$(".bar .fill", main).forEach((el) => (el.style.height = `${Math.max(2, Number(el.dataset.h))}%`));
   $("#end-practice", main)?.addEventListener("click", () => act(() => api("POST", "/api/practice/end")));
   $$("[data-goto]", main).forEach((b) => b.addEventListener("click", () => { S.page = b.dataset.goto; S.render(); }));
-  $("#q-list", main)?.addEventListener("change", (e) => (S.quick.listId = e.target.value));
+  $$("[data-pick]", main).forEach((b) => b.addEventListener("click", () => {
+    const id = b.dataset.pick;
+    const q = S.quick;
+    q.touched = true;
+    q.listIds = q.listIds.includes(id) ? q.listIds.filter((x) => x !== id) : [...q.listIds, id];
+    S.render();
+  }));
+  $("[data-pick-all]", main)?.addEventListener("click", () => {
+    S.quick.touched = true;
+    S.quick.listIds = allPicked ? [] : lists.map((l) => l.id);
+    S.render();
+  });
   $("#q-lock", main)?.addEventListener("change", (e) => (S.quick.lock = e.target.value));
   $("#q-custom", main)?.addEventListener("input", (e) => (S.quick.minutes = Number(e.target.value)));
   $$("[data-min]", main).forEach((b) =>

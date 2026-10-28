@@ -15,7 +15,7 @@ use contentguard_core::clock::TrustedClock;
 use contentguard_core::engine::{self, Now, Policy};
 use contentguard_core::lock::{self, PolicyError, UnlockProof};
 use contentguard_core::model::{Config, LockKind, Protection, ProtectionLevel, State};
-use contentguard_core::presets::{self, PRESETS};
+use contentguard_core::presets::{self, PresetDef};
 use contentguard_core::protection::{Request, RequestKind, RequestStatus};
 use contentguard_core::store::Store;
 
@@ -26,6 +26,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CONFIG_FILE: &str = "config.json";
 const STATE_FILE: &str = "state.json";
 const LICENSE_FILE: &str = "license.json";
+/// Last ready-made list definitions received from the server.
+const PRESETS_FILE: &str = "presets.json";
 /// Length of the challenge for Mindful-level protection requests.
 const REQUEST_CHALLENGE_LENGTH: usize = 150;
 const PRACTICE_DAYS: i64 = 7;
@@ -41,6 +43,21 @@ pub struct Inner {
     pub extension_seen: HashMap<String, Instant>,
     pub hosts_status: Result<(), String>,
     pub state_dirty: bool,
+    /// When the uninstaller last got approval (lets the service be stopped).
+    pub uninstall_approved_at: Option<Instant>,
+    /// Ready-made list definitions in effect (server copy or built-in).
+    pub presets: Vec<PresetDef>,
+    /// When presets were last fetched without a server version (old servers).
+    pub presets_fetched_at: Option<Instant>,
+    /// Outcome of the last automatic-update attempt, for display/health.
+    pub update_status: String,
+    /// The user pressed "Update now" in the app.
+    pub update_requested: bool,
+    /// What the updater is doing right now: "", "downloading", "installing".
+    pub update_phase: &'static str,
+    /// Running browsers: whether their extension is reporting in, and whether
+    /// they are being closed for lacking it (shown in Settings).
+    pub browser_report: Vec<Value>,
 }
 
 pub struct App {
@@ -92,6 +109,10 @@ impl From<io::Error> for ApiError {
 
 pub type ApiResult = Result<Value, ApiError>;
 
+fn store_has(store: &Store, file: &str) -> bool {
+    store.path(file).exists()
+}
+
 pub fn local_now(utc: DateTime<Utc>) -> Now {
     Now {
         utc,
@@ -101,7 +122,12 @@ pub fn local_now(utc: DateTime<Utc>) -> Now {
 
 impl App {
     pub fn open(store: Store) -> io::Result<App> {
-        let config: Config = store.load(CONFIG_FILE)?;
+        let mut config: Config = store.load(CONFIG_FILE)?;
+        // Upgrade configs saved by older versions (only touches old files; a
+        // brand-new install has no config.json and starts at the current version).
+        if store_has(&store, CONFIG_FILE) && presets::migrate(&mut config) {
+            store.save(CONFIG_FILE, &config)?;
+        }
         let state: State = store.load(STATE_FILE)?;
         let mut license: License = store.load(LICENSE_FILE)?;
         // Anchor the install id to the machine and to an out-of-band home-dir
@@ -116,6 +142,13 @@ impl App {
             license.trial_started = Some(Utc::now());
             let _ = store.save(LICENSE_FILE, &license);
         }
+        // Ready-made lists: the last copy from the server, else the built-ins.
+        let cached: Vec<PresetDef> = store.load(PRESETS_FILE)?;
+        let preset_defs = if cached.is_empty() {
+            presets::builtin_defs()
+        } else {
+            cached
+        };
         let clock = TrustedClock::new(Utc::now(), state.trusted_now);
         let boot_time = Utc
             .timestamp_opt(sysinfo::System::boot_time() as i64, 0)
@@ -127,11 +160,18 @@ impl App {
                 config,
                 state,
                 license,
+                presets: preset_defs,
+                presets_fetched_at: None,
+                update_status: String::new(),
+                update_requested: false,
+                update_phase: "",
                 clock,
                 last_tick: Instant::now(),
                 extension_seen: HashMap::new(),
                 hosts_status: Ok(()),
                 state_dirty: false,
+                uninstall_approved_at: None,
+                browser_report: Vec::new(),
             }),
             boot_time,
         })
@@ -158,9 +198,13 @@ impl App {
 
     /// The licensing endpoint resolved from config (falls back to the built-in default).
     pub fn license_endpoint(&self, inner: &Inner) -> license::Endpoint {
+        // The licensing server is NOT user-configurable: pointing the agent at
+        // a self-made server would fake premium. Only an environment variable
+        // (set by a developer/admin for testing) can override the default.
+        let _ = inner;
         license::Endpoint::resolve(
-            &inner.config.settings.backend_url,
-            &inner.config.settings.backend_key,
+            &std::env::var("CONTENTGUARD_BACKEND_URL").unwrap_or_default(),
+            &std::env::var("CONTENTGUARD_BACKEND_KEY").unwrap_or_default(),
         )
     }
 
@@ -269,7 +313,7 @@ impl App {
             "extension_seen_seconds_ago": ext,
             "boot_time": self.boot_time,
             "practice_mode": practice,
-            "presets": PRESETS,
+            "presets": inner.presets,
             "license": {
                 "status": inner.license.status(now.utc),
                 "install_id": inner.license.install_id,
@@ -279,8 +323,13 @@ impl App {
                 "premium_until": inner.license.premium_until,
                 "last_checked": inner.license.last_checked,
                 "last_error": inner.license.last_error,
+                "purchase_url": inner.license.purchase_url,
+                "pay": inner.license.pay,
+                "pending_purchase": inner.license.pending_purchase,
             },
+            "update": self.update_info(inner),
             "browsers": {
+                "running": inner.browser_report,
                 "supported": SUPPORTED_BROWSERS,
                 "unsupported": UNSUPPORTED_BROWSERS,
                 "managed": {
@@ -306,6 +355,12 @@ impl App {
         // Fields the agent owns.
         new.version = contentguard_core::model::CONFIG_VERSION;
         new.settings.practice_mode_until = inner.config.settings.practice_mode_until;
+        new.settings.backend_url = inner.config.settings.backend_url.clone();
+        new.settings.backend_key = inner.config.settings.backend_key.clone();
+        // The extension identity is not user-editable either: a bogus id would
+        // silently tear down the force-installed (locked) extension.
+        new.settings.extension_id = inner.config.settings.extension_id.clone();
+        new.settings.extension_update_url = inner.config.settings.extension_update_url.clone();
         if new.settings.onboarded
             && !inner.config.settings.onboarded
             && new.settings.practice_mode_until.is_none()
@@ -322,15 +377,54 @@ impl App {
         Ok(json!({ "ok": true, "config": inner.config }))
     }
 
-    pub fn add_preset(&self, id: &str) -> ApiResult {
-        let preset = presets::preset(id).ok_or_else(|| ApiError::not_found("preset"))?;
+    pub fn add_preset(&self, id: &str, name: Option<&str>) -> ApiResult {
         let mut g = self.lock();
         let inner = &mut *g;
+        let preset = inner
+            .presets
+            .iter()
+            .find(|p| p.id == id)
+            .cloned()
+            .ok_or_else(|| ApiError::not_found("preset"))?;
         let now = self.now(inner);
         self.require_license(inner, now.utc)?;
-        let list = preset.to_block_list(&inner.config.settings.language);
-        let list_id = list.id.clone();
-        inner.config.block_lists.push(list);
+        let mut list = preset.to_block_list(&inner.config.settings.language);
+        if let Some(n) = name
+            .map(str::trim)
+            .filter(|n| !n.is_empty() && n.chars().count() <= 60)
+        {
+            list.name = n.to_string();
+        }
+        // Adding a preset that is already there tops the existing list up with
+        // anything new (e.g. after an update) instead of creating a duplicate.
+        let existing = inner.config.block_lists.iter_mut().find(|b| {
+            b.preset == preset.id || b.name == preset.name_en || b.name == preset.name_bn
+        });
+        let list_id = match existing {
+            Some(b) => {
+                for (have, add) in [
+                    (&mut b.sites, &list.sites),
+                    (&mut b.apps, &list.apps),
+                    (&mut b.keywords, &list.keywords),
+                ] {
+                    for item in add {
+                        if !have.iter().any(|h| h.eq_ignore_ascii_case(item)) {
+                            have.push(item.clone());
+                        }
+                    }
+                }
+                if b.preset.is_empty() {
+                    b.preset = preset.id.clone();
+                }
+                b.always_on |= list.always_on;
+                b.id.clone()
+            }
+            None => {
+                let id = list.id.clone();
+                inner.config.block_lists.push(list);
+                id
+            }
+        };
         self.save_config(inner)?;
         Ok(json!({ "ok": true, "block_list_id": list_id }))
     }
@@ -606,12 +700,25 @@ impl App {
         Ok(json!({ "ok": true }))
     }
 
+    /// Whether the OS service may be stopped now: when nothing is protected or
+    /// locked, or for a while after an approved uninstall was consumed.
+    pub fn service_stop_allowed(&self, inner: &Inner, now: DateTime<Utc>) -> bool {
+        let recently_approved = inner
+            .uninstall_approved_at
+            .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(15 * 60));
+        recently_approved
+            || (!lock::guarded(&inner.config)
+                && lock::locked_list_ids(&inner.config, &inner.state, now).is_empty())
+    }
+
     /// Used by the uninstaller. Returns true (and consumes the approval) when uninstalling is allowed.
     pub fn uninstall_check(&self) -> io::Result<bool> {
         let mut g = self.lock();
         let inner = &mut *g;
         self.now(inner);
         if inner.config.protection.level == ProtectionLevel::Off {
+            inner.uninstall_approved_at = Some(Instant::now());
+            crate::ALLOW_STOP.store(true, std::sync::atomic::Ordering::Relaxed);
             return Ok(true);
         }
         let approved = inner
@@ -623,6 +730,8 @@ impl App {
             Some(r) => {
                 r.status = RequestStatus::Used;
                 self.save_state(inner)?;
+                inner.uninstall_approved_at = Some(Instant::now());
+                crate::ALLOW_STOP.store(true, std::sync::atomic::Ordering::Relaxed);
                 Ok(true)
             }
             None => Ok(false),
@@ -707,11 +816,26 @@ impl App {
             )
         };
         let now = Utc::now();
-        let res = if first {
+        let health = self.health_report();
+        let mut res = if first {
             license::register(&ep, &mut lic, VERSION, now)
         } else {
-            license::refresh(&ep, &mut lic, now)
+            license::refresh(&ep, &mut lic, now, VERSION, health)
         };
+        // A crash report has been delivered once the server accepted it.
+        if res.is_ok() && lic.server_accepts_health {
+            let _ = std::fs::remove_file(self.store.path(crate::CRASH_FILE));
+        }
+        // The server no longer knows this device (e.g. "not registered"):
+        // register again. The server keys the trial on the install id, so this
+        // never hands out a second trial for a device it has seen.
+        if !first
+            && res
+                .as_ref()
+                .is_err_and(|e| e.starts_with(license::REJECTED))
+        {
+            res = license::register(&ep, &mut lic, VERSION, now);
+        }
         if res.is_err() && first {
             // No network on first run: start the trial locally so the app is usable.
             if lic.trial_started.is_none() {
@@ -725,10 +849,309 @@ impl App {
         let _ = self.save_license(&g);
     }
 
+    /// Fetches the admin-managed ready-made lists from the server and brings
+    /// the user's lists made from them up to date (see `presets::apply_update`).
+    /// Keeps the current definitions when offline or when the answer looks wrong.
+    pub fn sync_presets(&self) -> bool {
+        let ep = {
+            let g = self.lock();
+            self.license_endpoint(&g)
+        };
+        let Ok(remote) = license::fetch_presets(&ep) else {
+            return false;
+        };
+        let fresh: Vec<PresetDef> = remote
+            .into_iter()
+            .filter_map(PresetDef::sanitized)
+            .collect();
+        if fresh.is_empty() {
+            return true; // empty table or nothing usable: keep what we have
+        }
+        let builtin = presets::builtin_defs();
+        let mut g = self.lock();
+        let inner = &mut *g;
+        let mut effective: Vec<PresetDef> = Vec::new();
+        let mut config_changed = false;
+        for new in fresh {
+            let prev = inner
+                .presets
+                .iter()
+                .chain(builtin.iter())
+                .find(|p| p.id == new.id)
+                .cloned()
+                .unwrap_or_else(|| PresetDef {
+                    id: new.id.clone(),
+                    ..Default::default()
+                });
+            if !presets::plausible_update(&prev, &new) {
+                eprintln!(
+                    "contentguard: ignoring implausible update of preset {}",
+                    new.id
+                );
+                effective.push(prev);
+                continue;
+            }
+            config_changed |= presets::apply_update(&mut inner.config, &prev, &new);
+            effective.push(new);
+        }
+        if config_changed {
+            let _ = self.save_config(inner);
+        }
+        if effective != inner.presets {
+            inner.presets = effective;
+            let _ = self.store.save(PRESETS_FILE, &inner.presets);
+        }
+        true
+    }
+
     pub fn refresh_license(&self) -> ApiResult {
-        self.sync_license();
+        // Checked right away (the user just bought, or pressed "refresh"), but
+        // never more than once a minute per device.
+        let recent = self
+            .lock()
+            .license
+            .last_checked
+            .is_some_and(|t| Utc::now() - t < Duration::seconds(60));
+        if !recent {
+            self.sync_license();
+            self.sync_presets_if_changed();
+        }
         let g = self.lock();
         Ok(json!({ "ok": true, "license": g.license.status(Utc::now()) }))
+    }
+
+    /// Update information for the app screen: the current version and, when a
+    /// genuine newer release exists, its version and "what's new" text.
+    fn update_info(&self, inner: &Inner) -> Value {
+        #[cfg(feature = "tls")]
+        let available = inner
+            .license
+            .latest_release
+            .clone()
+            .and_then(|v| serde_json::from_value::<crate::update::Release>(v).ok())
+            .filter(|r| crate::update::available(r, VERSION))
+            .map(|r| json!({ "version": r.version, "notes": r.notes, "notes_bn": r.notes_bn }));
+        #[cfg(not(feature = "tls"))]
+        let available: Option<Value> = None;
+        json!({
+            "current": VERSION,
+            "available": available,
+            "phase": inner.update_phase,
+            "requested": inner.update_requested,
+            "status": inner.update_status,
+        })
+    }
+
+    /// "Update now" from the app: the background updater picks it up within a
+    /// second (it installs even if this device isn't in the rollout yet).
+    pub fn request_update(&self) -> ApiResult {
+        let mut g = self.lock();
+        let has = self.update_info(&g)["available"].is_object();
+        if !has {
+            return Err(ApiError::new(409, "no_update", "no update available"));
+        }
+        g.update_requested = true;
+        Ok(json!({ "ok": true }))
+    }
+
+    /// Consumes a pending "Update now" request.
+    pub fn take_update_request(&self) -> bool {
+        std::mem::take(&mut self.lock().update_requested)
+    }
+
+    /// Installs a newer signed release announced by the server: automatically
+    /// when this device is in the rollout, or right away when the user asked
+    /// (`by_user`). Settings are kept: the installer upgrades in place.
+    #[cfg(feature = "tls")]
+    pub fn check_update(&self, by_user: bool) {
+        use crate::update;
+        let (release, install_id, tried_version, attempts) = {
+            let g = self.lock();
+            let r: Option<update::Release> = g
+                .license
+                .latest_release
+                .clone()
+                .and_then(|v| serde_json::from_value(v).ok());
+            (
+                r,
+                g.license.install_id.clone(),
+                g.license.update_attempt_version.clone(),
+                g.license.update_attempts,
+            )
+        };
+        let Some(r) = release else { return };
+        let go = if by_user {
+            update::available(&r, VERSION)
+        } else {
+            update::wanted(&r, VERSION, &install_id)
+        };
+        if !go {
+            return;
+        }
+        let attempts = if tried_version == r.version {
+            attempts
+        } else {
+            0
+        };
+        // Automatic tries stop after a few failures; the user may always retry.
+        if attempts >= update::MAX_ATTEMPTS && !by_user {
+            return;
+        }
+        self.lock().update_phase = "downloading";
+        {
+            let mut g = self.lock();
+            g.license.update_attempt_version = r.version.clone();
+            g.license.update_attempts = attempts + 1;
+            let _ = self.save_license(&g);
+        }
+        let result = update::download_and_install(&r);
+        let mut g = self.lock();
+        // "installing": the installer now restarts the service on the new version.
+        g.update_phase = match &result {
+            Ok(s) if !s.contains("dry run") => "installing",
+            _ => "",
+        };
+        g.update_status = match result {
+            Ok(s) => format!("{}: {s}", r.version),
+            Err(e) => format!("{}: failed: {e}", r.version),
+        };
+        eprintln!("contentguard: update {}", g.update_status);
+    }
+
+    #[cfg(not(feature = "tls"))]
+    pub fn check_update(&self, _by_user: bool) {}
+
+    /// Anonymous health summary sent with license checks (only to servers that
+    /// accept it). No browsing data, no app names, no personal data: just
+    /// whether the parts of the app work, so problems can be found and fixed.
+    pub fn health_report(&self) -> Value {
+        let crash: String = std::fs::read_to_string(self.store.path(crate::CRASH_FILE))
+            .unwrap_or_default()
+            .chars()
+            .take(400)
+            .collect();
+        let g = self.lock();
+        let ext_browsers = g
+            .extension_seen
+            .values()
+            .filter(|t| t.elapsed().as_secs() < 3600)
+            .count();
+        let hosts_error = match &g.hosts_status {
+            Ok(()) => String::new(),
+            Err(e) if e.contains("denied") || e.contains("os error 5") => "permission".into(),
+            Err(_) => "other".into(),
+        };
+        let mut update: String = g.update_status.chars().take(120).collect();
+        if update.is_empty() {
+            update = "none".into();
+        }
+        json!({
+            "os": sysinfo::System::long_os_version().unwrap_or_default(),
+            "hosts_ok": g.hosts_status.is_ok(),
+            "hosts_error": hosts_error,
+            "protection": g.config.protection.level,
+            "always_on_lists": g.config.block_lists.iter().filter(|b| b.always_on).count(),
+            "extension_browsers": ext_browsers,
+            "update": update,
+            "crash": crash,
+        })
+    }
+
+    /// A purchase from the app's Premium page: the customer paid with
+    /// bKash/Nagad/Rocket and typed the TrxID. The admin approves it in
+    /// Supabase (purchase_requests -> status = approved) and Premium turns on.
+    pub fn submit_purchase(
+        &self,
+        plan: &str,
+        method: &str,
+        txn_id: &str,
+        contact: &str,
+    ) -> ApiResult {
+        let txn: String = txn_id.trim().to_ascii_uppercase();
+        if !matches!(plan, "monthly" | "yearly" | "lifetime")
+            || !matches!(method, "bkash" | "nagad" | "rocket" | "upay")
+        {
+            return Err(ApiError::bad_request("plan/method"));
+        }
+        if !(4..=40).contains(&txn.len()) || !txn.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(ApiError::new(400, "invalid_txn", "TrxID looks wrong"));
+        }
+        let contact: String = contact.trim().chars().take(40).collect();
+        let (ep, install_id) = {
+            let g = self.lock();
+            (self.license_endpoint(&g), g.license.install_id.clone())
+        };
+        license::submit_purchase(&ep, &install_id, plan, method, &txn, &contact).map_err(|e| {
+            if e.contains("already used") {
+                ApiError::new(409, "txn_used", e)
+            } else if e.contains("too many") {
+                ApiError::new(429, "too_many_pending", e)
+            } else if e.starts_with(license::REJECTED) {
+                ApiError::new(400, "invalid_txn", e)
+            } else {
+                ApiError::new(503, "license_offline", e)
+            }
+        })?;
+        let mut g = self.lock();
+        g.license.pending_purchase = Some(json!({
+            "plan": plan, "method": method, "txn_id": txn, "at": Utc::now(),
+        }));
+        self.save_license(&g)?;
+        Ok(json!({ "ok": true }))
+    }
+
+    /// While a purchase waits for approval the app checks every couple of
+    /// minutes (for two days), so Premium appears soon after the admin approves.
+    pub fn purchase_pending(&self) -> bool {
+        let mut g = self.lock();
+        let Some(p) = g.license.pending_purchase.clone() else {
+            return false;
+        };
+        let premium = matches!(g.license.status(Utc::now()), license::Status::Premium);
+        let old = p["at"]
+            .as_str()
+            .and_then(|t| t.parse::<DateTime<Utc>>().ok())
+            .is_none_or(|t| Utc::now() - t > Duration::days(2));
+        if premium || old {
+            g.license.pending_purchase = None;
+            let _ = self.save_license(&g);
+            return false;
+        }
+        true
+    }
+
+    /// Whether this device has ever reached the license server.
+    pub fn has_checked_license(&self) -> bool {
+        self.lock().license.last_checked.is_some()
+    }
+
+    /// Downloads the preset lists only when the admin changed them: the
+    /// license answer carries a small version string, so millions of devices
+    /// don't re-download unchanged lists. Servers without that field fall back
+    /// to one download per day.
+    pub fn sync_presets_if_changed(&self) {
+        let (server_version, fetched, fetched_at) = {
+            let g = self.lock();
+            (
+                g.license.presets_version.clone(),
+                g.license.presets_fetched.clone(),
+                g.presets_fetched_at,
+            )
+        };
+        let due = if server_version.is_empty() {
+            fetched_at.is_none_or(|t| t.elapsed() >= std::time::Duration::from_secs(24 * 3600))
+        } else {
+            server_version != fetched
+        };
+        if !due {
+            return;
+        }
+        if self.sync_presets() {
+            let mut g = self.lock();
+            g.presets_fetched_at = Some(Instant::now());
+            g.license.presets_fetched = server_version;
+            let _ = self.save_license(&g);
+        }
     }
 
     pub fn activate_premium(&self, code: &str) -> ApiResult {
@@ -739,8 +1162,13 @@ impl App {
             let g = self.lock();
             (self.license_endpoint(&g), g.license.clone())
         };
-        license::redeem(&ep, &mut lic, code, Utc::now())
-            .map_err(|e| ApiError::new(400, "activation_failed", e))?;
+        license::redeem(&ep, &mut lic, code, Utc::now()).map_err(|e| {
+            if e.starts_with(license::REJECTED) {
+                ApiError::new(400, "invalid_code", e.trim_start_matches(license::REJECTED))
+            } else {
+                ApiError::new(503, "license_offline", e)
+            }
+        })?;
         let mut g = self.lock();
         lic.install_id = g.license.install_id.clone();
         g.license = lic;
@@ -756,7 +1184,11 @@ fn block_weight(c: &Config) -> i64 {
     let rules: i64 = c
         .block_lists
         .iter()
-        .map(|b| (b.sites.len() + b.apps.len() + b.keywords.len()) as i64 + b.allowlist_mode as i64)
+        .map(|b| {
+            (b.sites.len() + b.apps.len() + b.keywords.len()) as i64
+                + b.allowlist_mode as i64
+                + 3 * b.always_on as i64
+        })
         .sum();
     let schedules = c.schedules.iter().filter(|x| x.enabled).count() as i64;
     let limits = c.limits.iter().filter(|x| x.enabled).count() as i64;
@@ -764,6 +1196,7 @@ fn block_weight(c: &Config) -> i64 {
     let flags = s.require_browser_extension as i64
         + s.block_unsupported_browsers as i64
         + s.force_safe_search as i64
+        + s.block_private_windows as i64
         + (s.dns_filter != "off") as i64
         + s.distraction_filters.len() as i64;
     rules + 5 * schedules + 5 * limits + 20 * protection + flags

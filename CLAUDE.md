@@ -31,7 +31,7 @@ licensing model backed by Supabase.
 ## Checks before committing
 ```
 cargo fmt --all && cargo clippy --all-targets -- -D warnings && cargo test
-node --test extension/test/*.test.js
+node --test extension/test/*.test.js ui/test/*.test.mjs
 cd backend && npm test
 ```
 Dev run: `CONTENTGUARD_DATA_DIR=./.dev/data CONTENTGUARD_HOSTS_FILE=./.dev/hosts \

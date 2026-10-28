@@ -95,6 +95,10 @@ pub const SUPPORTED_BROWSERS: &[&str] = &[
 /// When "block unsupported browsers" is on, these are closed while blocking.
 pub const UNSUPPORTED_BROWSERS: &[&str] = &[
     "safari",
+    // Tor routes DNS through its own network, so the hosts file cannot filter it.
+    "tor",
+    "torbrowser",
+    "tor browser",
     "palemoon",
     "basilisk",
     "seamonkey",
@@ -147,6 +151,42 @@ pub fn browser_family(name: &str) -> Option<BrowserFamily> {
         }
         _ => None,
     }
+}
+
+/// Which browser product a process is, as `(report key, display name)`.
+/// The report key is what the extension running in that browser sends
+/// (see `extension/background.js`), so each browser is checked on its own:
+/// an extension in Chrome does not make Edge count as protected.
+/// Chromium browsers that don't identify themselves share the "generic" key.
+pub fn browser_brand(name: &str) -> Option<(&'static str, &'static str)> {
+    Some(match normalize_app(name).as_str() {
+        "chrome" | "google chrome" => ("chrome", "Chrome"),
+        "msedge" | "microsoft edge" => ("edge", "Edge"),
+        "brave" | "brave browser" => ("brave", "Brave"),
+        "opera" | "opera_gx" | "operagx" => ("opera", "Opera"),
+        "yandex" => ("yandex", "Yandex"),
+        "vivaldi" => ("generic", "Vivaldi"),
+        "arc" => ("generic", "Arc"),
+        "chromium" | "chromium-browser" => ("generic", "Chromium"),
+        "firefox" | "firefox-esr" => ("firefox", "Firefox"),
+        "librewolf" => ("firefox", "LibreWolf"),
+        "waterfox" => ("firefox", "Waterfox"),
+        "zen" => ("firefox", "Zen"),
+        "floorp" => ("firefox", "Floorp"),
+        _ => return None,
+    })
+}
+
+/// Report keys an extension may send.
+pub const REPORT_KEYS: &[&str] = &[
+    "chrome", "edge", "brave", "opera", "yandex", "generic", "firefox",
+];
+
+/// Whether an extension report under `seen_key` covers a browser process.
+/// Older extension versions only report the engine family ("chromium"), which
+/// still covers every Chromium browser until they update.
+pub fn report_covers(seen_key: &str, brand: &str, family: BrowserFamily) -> bool {
+    seen_key == brand || seen_key == family.key()
 }
 
 pub fn browser_support(name: &str) -> BrowserSupport {
@@ -225,6 +265,33 @@ impl Watcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brands_are_checked_per_browser() {
+        let (chrome, _) = browser_brand("chrome.exe").unwrap();
+        let (edge, _) = browser_brand("msedge.exe").unwrap();
+        assert_eq!((chrome, edge), ("chrome", "edge"));
+        // An extension in Chrome does not cover Edge...
+        assert!(report_covers("chrome", chrome, BrowserFamily::Chromium));
+        assert!(!report_covers("chrome", edge, BrowserFamily::Chromium));
+        // ...but an old family-only report still covers both.
+        assert!(report_covers("chromium", edge, BrowserFamily::Chromium));
+        assert!(!report_covers(
+            "chromium",
+            "firefox",
+            BrowserFamily::Firefox
+        ));
+        assert_eq!(browser_brand("librewolf").unwrap().0, "firefox");
+        assert!(browser_brand("notepad.exe").is_none());
+        for (k, _) in [
+            "chrome", "msedge", "brave", "opera", "yandex", "vivaldi", "firefox",
+        ]
+        .iter()
+        .filter_map(|n| browser_brand(n))
+        {
+            assert!(REPORT_KEYS.contains(&k));
+        }
+    }
 
     #[test]
     fn families() {

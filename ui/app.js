@@ -1,8 +1,11 @@
 // ContentGuard UI entry point: navigation, rendering, onboarding and polling.
-import { S, $, $$, t, num, esc, api, cfg, clone, refresh, openModal, closeModal, modalOpen, updateCountdowns, toast, errMsg } from "/core.js";
+import { S, $, $$, t, presetName, addPreset, num, esc, languageOptions, getLanguage, api, cfg, clone, refresh, openModal, closeModal, modalOpen, updateCountdowns, toast, errMsg } from "/core.js";
 import { renderHome } from "/home.js";
 import { renderLists, renderSchedules, renderLimits } from "/editors.js";
 import { renderProtection, renderSettings, renderLicense } from "/protection.js";
+import { initTips } from "/help.js";
+
+initTips();
 
 const PAGES = [
   ["home", "🏠", "nav_home", renderHome],
@@ -28,6 +31,46 @@ function licenseBanner() {
   return "";
 }
 
+/** "Update available" / "Updating…" banner, shown on every page. */
+function updateBanner() {
+  const u = S.status.update;
+  if (!u) return "";
+  if (S.updating || u.requested || u.phase) return `<div class="banner info">⏳ ${t("update_installing")}</div>`;
+  if (!u.available) return "";
+  const notes = getLanguage() === "bn" && u.available.notes_bn ? u.available.notes_bn : u.available.notes;
+  return `<div class="banner ok row between"><span><strong>🎉 ${t("update_available", { v: esc(u.available.version) })}</strong>${
+    notes ? `<br><small>${t("whats_new")}: ${esc(notes)}</small>` : ""
+  }</span><button class="btn small primary" data-update-now>${t("update_now")}</button></div>`;
+}
+
+/** Starts an in-app update; the app reconnects by itself afterwards. */
+export async function startUpdate() {
+  try {
+    await api("POST", "/api/update/install");
+    S.updating = true;
+    S.updatingFrom = S.status.version;
+    S.updateStarted = Date.now();
+    render();
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+}
+
+/** After an update: say so when the new version answers, or if it failed. */
+function followUpdate() {
+  if (!S.updating || !S.status) return;
+  const u = S.status.update || {};
+  if (S.status.version !== S.updatingFrom) {
+    S.updating = false;
+    toast(t("update_done", { v: S.status.version }));
+  } else if (!u.requested && !u.phase && /failed/.test(u.status || "")) {
+    S.updating = false;
+    toast(t("update_failed"), true);
+  } else if (Date.now() - S.updateStarted > 10 * 60_000) {
+    S.updating = false; // give up waiting quietly; the banner returns if still available
+  }
+}
+
 function renderNav() {
   $("#tagline").textContent = t("tagline");
   $("#nav").innerHTML = PAGES.map(
@@ -46,12 +89,17 @@ function render() {
   renderNav();
   const main = $("#main");
   if (S.offline || !S.status) {
-    main.innerHTML = `<div class="banner danger">${t("agent_offline")}</div>`;
+    // While updating, the service restarts for a few seconds: that's expected.
+    main.innerHTML = S.updating
+      ? `<div class="banner info">⏳ ${t("update_installing")}</div>`
+      : `<div class="banner danger">${t("agent_offline")}</div>`;
     return;
   }
   PAGES.find((p) => p[0] === S.page)[3](main);
   // Prepend the license banner (not on the premium page itself).
   if (S.page !== "premium") main.insertAdjacentHTML("afterbegin", licenseBanner());
+  main.insertAdjacentHTML("afterbegin", updateBanner());
+  $("[data-update-now]", main)?.addEventListener("click", startUpdate);
   $$("#main [data-page]").forEach((b) =>
     b.addEventListener("click", () => {
       S.page = b.dataset.page;
@@ -65,7 +113,7 @@ S.render = render;
 
 // ---------- onboarding ----------
 
-const ob = { step: 0, language: "en", goal: "", presets: new Set(["social", "shorts"]), level: "off" };
+const ob = { step: 0, language: "en", goal: "", presets: new Set(["adult", "gambling", "shorts"]), level: "mindful" };
 
 function startOnboarding() {
   S.onboarding = true;
@@ -74,19 +122,19 @@ function startOnboarding() {
 }
 
 function showStep() {
-  const bn = ob.language === "bn";
   const steps = `<div class="steps">${[0, 1, 2].map((i) => `<span class="${i <= ob.step ? "on" : ""}"></span>`).join("")}</div>`;
   let body = "";
   if (ob.step === 0) {
     body = `<h2>${t("ob_welcome")}</h2>
-      <label>${t("language")}<select id="ob-lang"><option value="bn" ${bn ? "selected" : ""}>বাংলা</option><option value="en" ${bn ? "" : "selected"}>English</option></select></label>
+      <label>${t("language")}<select id="ob-lang">${languageOptions(ob.language)}</select></label>
       <label>${t("ob_goal_q")}<input type="text" id="ob-goal" maxlength="140" value="${esc(ob.goal)}" placeholder="${esc(t("goal_placeholder"))}"></label>`;
   } else if (ob.step === 1) {
     body = `<h2>${t("ob_presets_q")}</h2>
-      <div class="preset-grid">${S.status.presets.map((p) => `<button class="preset" data-p="${esc(p.id)}" aria-pressed="${ob.presets.has(p.id)}"><span class="icon">${p.icon}</span><strong>${esc(bn ? p.name_bn : p.name_en)}</strong></button>`).join("")}</div>`;
+      <p class="hint">${t("ob_presets_hint")}</p>
+      <div class="preset-grid">${S.status.presets.map((p) => `<button class="preset" data-p="${esc(p.id)}" aria-pressed="${ob.presets.has(p.id)}"><span class="icon">${p.icon}</span><strong>${esc(presetName(p))}</strong></button>`).join("")}</div>`;
   } else {
     body = `<h2>${t("ob_protection_q")}</h2>
-      <div class="level-cards">${["off", "mindful", "committed"].map((lv) => `<button class="preset" data-lv="${lv}" aria-pressed="${ob.level === lv}"><strong>${t(`level_${lv}`)}</strong><small>${t(`level_${lv}_desc`, { hours: num(24), days: num(7) })}</small></button>`).join("")}</div>
+      <div class="level-cards">${["off", "mindful", "committed"].map((lv) => `<button class="preset" data-lv="${lv}" aria-pressed="${ob.level === lv}"><strong>${t(`level_${lv}`)}${lv === "mindful" ? ` <span class="badge ok">${t("recommended")}</span>` : ""}</strong><small>${t(`level_${lv}_desc`, { hours: num(24), days: num(7) })}</small></button>`).join("")}</div>
       <p class="hint">${t("practice_mode")}</p>`;
   }
   const back = ob.step > 0 ? `<button class="btn" id="ob-back">${t("ob_back")}</button>` : "";
@@ -95,7 +143,7 @@ function showStep() {
     $("#ob-lang", m)?.addEventListener("change", (e) => {
       ob.language = e.target.value;
       ob.goal = $("#ob-goal", m).value;
-      import("/i18n.js").then((i) => { i.setLanguage(ob.language); showStep(); renderNav(); });
+      import("/i18n.js").then((i) => { i.setLanguage(ob.language); render(); showStep(); });
     });
     $$("[data-p]", m).forEach((b) => b.addEventListener("click", () => {
       ob.presets.has(b.dataset.p) ? ob.presets.delete(b.dataset.p) : ob.presets.add(b.dataset.p);
@@ -121,7 +169,7 @@ async function finishOnboarding() {
     c1.settings.language = ob.language;
     c1.settings.goal = ob.goal;
     await api("PUT", "/api/config", c1);
-    for (const id of ob.presets) await api("POST", `/api/presets/${id}`);
+    for (const id of ob.presets) await addPreset(id);
     await refresh();
     const c2 = clone(cfg());
     c2.settings.onboarded = true;
@@ -146,6 +194,8 @@ function userIsEditing() {
 
 async function poll() {
   await refresh();
+  followUpdate();
+  if (S.updating) return render();
   // Only the home page refreshes itself; forms elsewhere must not be wiped while typing.
   if ((S.page === "home" || S.offline) && !userIsEditing()) render();
 }

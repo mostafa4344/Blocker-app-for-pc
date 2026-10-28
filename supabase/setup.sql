@@ -68,7 +68,7 @@ begin
     raise exception 'invalid install_id' using errcode = '22023';
   end if;
   insert into public.accounts (install_id, trial_days, os, version)
-    values (p_install_id, greatest(1, least(365, coalesce(p_trial_days,4))), coalesce(p_os,''), coalesce(p_version,''))
+    values (p_install_id, 4 /* fixed server-side: p_trial_days is ignored so clients can't pick a longer trial */, coalesce(p_os,''), coalesce(p_version,''))
     on conflict (install_id) do update set os = excluded.os, version = excluded.version, updated_at = now()
     returning * into a;
   return public.license_json(a);
@@ -129,6 +129,10 @@ revoke all on function public.get_license(text) from public;
 revoke all on function public.redeem_code(text,text) from public;
 revoke all on function public.admin_grant_premium(text,int) from public;
 revoke all on function public.admin_create_code(text,int,text) from public;
+-- Supabase grants EXECUTE to anon/authenticated directly, so revoke from them too
+-- (otherwise anyone with the public key could grant themselves Premium).
+revoke all on function public.admin_grant_premium(text,int) from anon, authenticated;
+revoke all on function public.admin_create_code(text,int,text) from anon, authenticated;
 
 grant execute on function public.register_device(text,text,text,int) to anon, authenticated;
 grant execute on function public.get_license(text) to anon, authenticated;

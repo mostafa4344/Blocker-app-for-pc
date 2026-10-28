@@ -48,11 +48,36 @@ fn run_service() -> windows_service::Result<()> {
         wait_hint: Duration::from_secs(5),
         process_id: None,
     };
-    status_handle.set_service_status(status(
-        ServiceState::Running,
-        ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-    ))?;
-    let _ = crate::run_until(stop);
+    let accept = |allow_stop: bool| {
+        if allow_stop {
+            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN
+        } else {
+            ServiceControlAccept::SHUTDOWN
+        }
+    };
+    let mut allow_stop = crate::ALLOW_STOP.load(Ordering::Relaxed);
+    status_handle.set_service_status(status(ServiceState::Running, accept(allow_stop)))?;
+    let run_stop = stop.clone();
+    let worker = std::thread::spawn(move || crate::run_until(run_stop));
+    // Keep the accepted controls in sync with the protection state.
+    while !stop.load(Ordering::Relaxed) && !worker.is_finished() {
+        std::thread::sleep(Duration::from_millis(500));
+        let now_allowed = crate::ALLOW_STOP.load(Ordering::Relaxed);
+        if now_allowed != allow_stop {
+            allow_stop = now_allowed;
+            let _ =
+                status_handle.set_service_status(status(ServiceState::Running, accept(allow_stop)));
+        }
+    }
+    stop.store(true, Ordering::Relaxed);
+    let failed = matches!(worker.join(), Ok(Err(_)) | Err(_));
+    if failed {
+        // Report a failure so the service recovery actions restart us.
+        let mut st = status(ServiceState::Stopped, ServiceControlAccept::empty());
+        st.exit_code = ServiceExitCode::Win32(1067);
+        let _ = status_handle.set_service_status(st);
+        return Ok(());
+    }
     status_handle
         .set_service_status(status(ServiceState::Stopped, ServiceControlAccept::empty()))?;
     Ok(())

@@ -25,6 +25,8 @@ pub enum Reason {
     Session,
     Schedule,
     Limit,
+    /// The list is set to "always on".
+    Always,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -135,6 +137,10 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
         })
     };
 
+    let protected = config.protection.level != crate::model::ProtectionLevel::Off;
+    for list in config.block_lists.iter().filter(|b| b.always_on) {
+        add(list, Reason::Always, None, None, protected);
+    }
     for s in state.sessions.iter().filter(|s| s.is_active(now.utc)) {
         if let Some(list) = config.block_list(&s.block_list_id) {
             add(
@@ -344,6 +350,8 @@ mod tests {
                     apps: vec!["discord.exe".into()],
                     keywords: vec!["tiktok".into()],
                     allowlist_mode: false,
+                    always_on: false,
+                    preset: String::new(),
                 },
                 BlockList {
                     id: "work".into(),

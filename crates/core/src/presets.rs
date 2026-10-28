@@ -1,8 +1,9 @@
 //! Ready-made block lists offered during onboarding.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::model::BlockList;
+use crate::matcher::SiteRule;
+use crate::model::{BlockList, Config};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Preset {
@@ -325,14 +326,308 @@ impl Preset {
             apps: own(self.apps),
             keywords: own(self.keywords),
             allowlist_mode: false,
+            // Content nobody needs "sometimes" is blocked around the clock.
+            always_on: self.always_on_by_default(),
+            preset: self.id.to_string(),
         }
     }
+
+    /// Presets that are blocked 24/7 by default (harmful content, not distractions).
+    pub fn always_on_by_default(&self) -> bool {
+        matches!(self.id, "adult" | "gambling")
+    }
+}
+
+/// A ready-made list definition that can come from the server (the
+/// `preset_lists` table an admin edits in Supabase) or from the built-ins.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct PresetDef {
+    pub id: String,
+    pub name_en: String,
+    pub name_bn: String,
+    pub icon: String,
+    pub sites: Vec<String>,
+    pub apps: Vec<String>,
+    pub keywords: Vec<String>,
+    /// Lists from this preset are blocked 24/7.
+    pub always_on: bool,
+}
+
+impl From<&Preset> for PresetDef {
+    fn from(p: &Preset) -> Self {
+        let own = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
+        PresetDef {
+            id: p.id.into(),
+            name_en: p.name_en.into(),
+            name_bn: p.name_bn.into(),
+            icon: p.icon.into(),
+            sites: own(p.sites),
+            apps: own(p.apps),
+            keywords: own(p.keywords),
+            always_on: p.always_on_by_default(),
+        }
+    }
+}
+
+/// The presets compiled into the app (used offline / before the first sync).
+pub fn builtin_defs() -> Vec<PresetDef> {
+    PRESETS.iter().map(PresetDef::from).collect()
+}
+
+/// Limits for server data, so a mistake (or a compromised server) can't
+/// flood the hosts file or block the whole web.
+const MAX_ITEMS: usize = 20_000;
+const MAX_ITEM_LEN: usize = 200;
+
+fn clean(v: Vec<String>, ok: impl Fn(&str) -> bool) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for x in v {
+        let x = x.trim().to_string();
+        if !x.is_empty()
+            && x.len() <= MAX_ITEM_LEN
+            && !x.chars().any(char::is_control)
+            && ok(&x)
+            && !out.iter().any(|o| o.eq_ignore_ascii_case(&x))
+            && out.len() < MAX_ITEMS
+        {
+            out.push(x);
+        }
+    }
+    out
+}
+
+impl PresetDef {
+    pub fn to_block_list(&self, language: &str) -> BlockList {
+        BlockList {
+            id: crate::new_id(),
+            name: if language == "bn" && !self.name_bn.is_empty() {
+                self.name_bn.clone()
+            } else {
+                self.name_en.clone()
+            },
+            sites: self.sites.clone(),
+            apps: self.apps.clone(),
+            keywords: self.keywords.clone(),
+            allowlist_mode: false,
+            always_on: self.always_on,
+            preset: self.id.clone(),
+        }
+    }
+
+    fn total(&self) -> usize {
+        self.sites.len() + self.apps.len() + self.keywords.len()
+    }
+
+    /// Cleans a definition received from the server. Returns `None` if it is
+    /// unusable. Invalid entries are dropped; "block everything" (`*`) is never
+    /// accepted from the server.
+    pub fn sanitized(mut self) -> Option<PresetDef> {
+        let id_ok = !self.id.is_empty()
+            && self.id.len() <= 40
+            && self
+                .id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+        if !id_ok || self.name_en.trim().is_empty() {
+            return None;
+        }
+        self.sites = clean(self.sites, |s| {
+            s != "*" && SiteRule::parse(s).is_some_and(|r| !r.domain.is_empty())
+        });
+        self.apps = clean(self.apps, |a| !a.contains(['/', '\\']));
+        self.keywords = clean(self.keywords, |k| k.chars().count() >= 3);
+        self.name_en = self.name_en.trim().chars().take(60).collect();
+        self.name_bn = self.name_bn.trim().chars().take(60).collect();
+        self.icon = self.icon.trim().chars().take(4).collect();
+        Some(self)
+    }
+}
+
+/// Whether a server update looks sane compared with what we had: an update
+/// that would remove more than half of a list is ignored (most likely a
+/// mistake while editing the table).
+pub fn plausible_update(prev: &PresetDef, new: &PresetDef) -> bool {
+    new.total() * 2 >= prev.total()
+}
+
+/// Brings the user's lists made from preset `new.id` up to date: items the
+/// admin added appear, items the admin removed disappear, and anything the
+/// user added themselves is kept. `prev` is the definition the lists were
+/// last synced with. Lists are only ever switched *to* always-on. Returns
+/// true if the config changed.
+pub fn apply_update(config: &mut Config, prev: &PresetDef, new: &PresetDef) -> bool {
+    fn merge(current: &[String], prev: &[String], new: &[String]) -> Vec<String> {
+        let has = |v: &[String], x: &str| v.iter().any(|y| y.eq_ignore_ascii_case(x));
+        let mut out: Vec<String> = new.to_vec();
+        for x in current {
+            // Kept if the user added it (it was never part of the preset).
+            if !has(prev, x) && !has(&out, x) {
+                out.push(x.clone());
+            }
+        }
+        out
+    }
+    let mut changed = false;
+    for list in config.block_lists.iter_mut().filter(|b| b.preset == new.id) {
+        let sites = merge(&list.sites, &prev.sites, &new.sites);
+        let apps = merge(&list.apps, &prev.apps, &new.apps);
+        let keywords = merge(&list.keywords, &prev.keywords, &new.keywords);
+        let always_on = list.always_on || new.always_on;
+        if sites != list.sites
+            || apps != list.apps
+            || keywords != list.keywords
+            || always_on != list.always_on
+        {
+            list.sites = sites;
+            list.apps = apps;
+            list.keywords = keywords;
+            list.always_on = always_on;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Upgrades a config saved by an older version. Returns true if it changed.
+///
+/// Version 1 had no `always_on` / `preset` on block lists, so a list the user
+/// created from the Adult or Gambling preset blocked nothing unless a session
+/// or schedule was running. Those lists are recognised (by name in either
+/// language, or by their tell-tale keywords) and made always-on, which is what
+/// the user picked them for.
+pub fn migrate(config: &mut crate::model::Config) -> bool {
+    if config.version >= crate::model::CONFIG_VERSION {
+        return false;
+    }
+    for list in config.block_lists.iter_mut() {
+        if list.preset.is_empty() {
+            if let Some(p) = PRESETS
+                .iter()
+                .find(|p| list.name == p.name_en || list.name == p.name_bn)
+            {
+                list.preset = p.id.to_string();
+            } else if list.keywords.iter().any(|k| k == "porn" || k == "xxx") {
+                list.preset = "adult".to_string();
+            }
+        }
+        if let Some(p) = preset(&list.preset) {
+            if p.always_on_by_default() {
+                list.always_on = true;
+            }
+        }
+    }
+    config.version = crate::model::CONFIG_VERSION;
+    true
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::matcher::SiteRule;
+
+    #[test]
+    fn server_update_merges_and_keeps_user_items() {
+        let prev = PresetDef {
+            id: "adult".into(),
+            name_en: "Adult".into(),
+            sites: vec!["a.com".into(), "b.com".into(), "c.com".into()],
+            ..Default::default()
+        };
+        let mut list = prev.to_block_list("en");
+        list.sites.push("mine.com".into()); // added by the user
+        let mut c = Config {
+            block_lists: vec![list],
+            ..Default::default()
+        };
+        // Admin removed b.com, added d.com and made it always-on.
+        let new = PresetDef {
+            sites: vec!["a.com".into(), "c.com".into(), "d.com".into()],
+            always_on: true,
+            ..prev.clone()
+        };
+        assert!(plausible_update(&prev, &new));
+        assert!(apply_update(&mut c, &prev, &new));
+        let l = &c.block_lists[0];
+        assert_eq!(l.sites, vec!["a.com", "c.com", "d.com", "mine.com"]);
+        assert!(l.always_on);
+        assert!(!apply_update(&mut c, &new, &new), "second run is a no-op");
+        // An update that wipes most of the list is rejected.
+        let wiped = PresetDef {
+            sites: vec!["a.com".into()],
+            ..prev.clone()
+        };
+        assert!(!plausible_update(&new, &wiped));
+    }
+
+    #[test]
+    fn server_presets_are_sanitized() {
+        let raw = PresetDef {
+            id: "adult".into(),
+            name_en: "Adult".into(),
+            sites: vec![
+                "*".into(),
+                "ok.com".into(),
+                "OK.com".into(),
+                "evil.com\n1.2.3.4 bank.com".into(),
+                "".into(),
+            ],
+            apps: vec!["game.exe".into(), "C:\\x.exe".into()],
+            keywords: vec!["xx".into(), "porn".into()],
+            ..Default::default()
+        };
+        let p = raw.sanitized().unwrap();
+        assert_eq!(p.sites, vec!["ok.com"]);
+        assert_eq!(p.apps, vec!["game.exe"]);
+        assert_eq!(p.keywords, vec!["porn"]);
+        let bad_id = PresetDef {
+            id: "../x".into(),
+            name_en: "X".into(),
+            ..Default::default()
+        };
+        assert!(bad_id.sanitized().is_none());
+        assert_eq!(builtin_defs().len(), PRESETS.len());
+    }
+
+    #[test]
+    fn migrate_v1_makes_harmful_presets_always_on() {
+        use crate::model::{BlockList, Config};
+        let mut c = Config {
+            version: 1,
+            block_lists: vec![
+                BlockList {
+                    id: "a".into(),
+                    name: "Adult content".into(),
+                    ..Default::default()
+                },
+                BlockList {
+                    id: "b".into(),
+                    name: "জুয়া ও বাজি".into(),
+                    ..Default::default()
+                },
+                BlockList {
+                    id: "c".into(),
+                    name: "Social media".into(),
+                    ..Default::default()
+                },
+                BlockList {
+                    id: "d".into(),
+                    name: "My own list".into(),
+                    keywords: vec!["porn".into()],
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        assert!(migrate(&mut c));
+        let on: Vec<bool> = c.block_lists.iter().map(|b| b.always_on).collect();
+        assert_eq!(on, vec![true, true, false, true]);
+        assert_eq!(c.block_lists[2].preset, "social");
+        // Runs only once.
+        c.block_lists[0].always_on = false;
+        assert!(!migrate(&mut c));
+        assert!(!c.block_lists[0].always_on);
+    }
 
     #[test]
     fn presets_parse() {
