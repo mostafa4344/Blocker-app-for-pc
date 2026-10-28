@@ -222,6 +222,19 @@ pub struct Watcher {
     sys: System,
     seen_names: HashSet<String>,
     own_pid: Option<Pid>,
+    /// Program path -> whether it is a Tor Browser binary (cached).
+    tor_paths: std::collections::HashMap<std::path::PathBuf, bool>,
+}
+
+/// Name reported for a Tor Browser process, whatever its file is called.
+pub const TOR_BROWSER_NAME: &str = "Tor Browser";
+
+/// Tor Browser runs as `firefox.exe` (and can be renamed), so it is recognised
+/// by its layout instead: the Tor daemon ships next to the browser at
+/// `TorBrowser/Tor/tor(.exe)`. Renaming the folder doesn't change that.
+pub fn is_tor_browser_dir(dir: &std::path::Path) -> bool {
+    let tor = dir.join("TorBrowser").join("Tor");
+    tor.join("tor.exe").is_file() || tor.join("tor").is_file()
 }
 
 impl Watcher {
@@ -230,6 +243,7 @@ impl Watcher {
             sys: System::new(),
             seen_names: HashSet::new(),
             own_pid: sysinfo::get_current_pid().ok(),
+            tor_paths: std::collections::HashMap::new(),
         }
     }
 
@@ -240,17 +254,33 @@ impl Watcher {
             true,
             ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
         );
+        let tor_paths = &mut self.tor_paths;
         let procs: Vec<Proc> = self
             .sys
             .processes()
             .iter()
             .filter(|(pid, _)| Some(**pid) != self.own_pid)
-            .map(|(pid, p)| Proc {
-                pid: *pid,
-                name: p.name().to_string_lossy().into_owned(),
-                start_time: p.start_time(),
+            .map(|(pid, p)| {
+                let is_tor = p.exe().is_some_and(|exe| {
+                    *tor_paths
+                        .entry(exe.to_path_buf())
+                        .or_insert_with(|| exe.parent().is_some_and(is_tor_browser_dir))
+                });
+                Proc {
+                    pid: *pid,
+                    name: if is_tor {
+                        TOR_BROWSER_NAME.to_string()
+                    } else {
+                        p.name().to_string_lossy().into_owned()
+                    },
+                    start_time: p.start_time(),
+                }
             })
             .collect();
+        // Forget programs that are no longer running so the cache stays small.
+        if self.tor_paths.len() > 4096 {
+            self.tor_paths.clear();
+        }
         let names: HashSet<String> = procs.iter().map(|p| normalize_app(&p.name)).collect();
         let new_names = names.difference(&self.seen_names).cloned().collect();
         self.seen_names = names;
@@ -272,6 +302,25 @@ impl Watcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tor_browser_is_found_by_its_layout_not_its_name() {
+        let root = std::env::temp_dir().join(format!("cg-tor-test-{}", std::process::id()));
+        let tor_dir = root.join("Renamed Folder").join("Browser");
+        std::fs::create_dir_all(tor_dir.join("TorBrowser").join("Tor")).unwrap();
+        std::fs::write(tor_dir.join("TorBrowser").join("Tor").join("tor.exe"), b"").unwrap();
+        let firefox_dir = root.join("Mozilla Firefox");
+        std::fs::create_dir_all(&firefox_dir).unwrap();
+        assert!(is_tor_browser_dir(&tor_dir));
+        assert!(!is_tor_browser_dir(&firefox_dir));
+        // The name it is reported under is treated as an unsupported browser.
+        assert_eq!(
+            browser_support(TOR_BROWSER_NAME),
+            BrowserSupport::Unsupported
+        );
+        assert!(browser_brand(TOR_BROWSER_NAME).is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn brands_are_checked_per_browser() {

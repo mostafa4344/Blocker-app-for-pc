@@ -395,3 +395,12 @@ SQL: `supabase/migrations/20261025060000_update_table.sql` + `20261025070000_eas
 - Premium পাতা: সার্ভারের পেমেন্ট তথ্য আসার আগে "আনা হচ্ছে…" + রিফ্রেশ বোতাম (আগে "যোগাযোগ করুন" দেখাত)।
 - সাপোর্ট: WhatsApp 01568689505 (wa.me/8801568689505), contentguard.support@gmail.com — faq/terms/privacy-তে।
 - ওয়েবসাইট আপলোড: `dist/website-upload/content-guard-pc/` (+ zip), গাইড `WEBSITE-UPLOAD-GUIDE.html`। ডাউনলোড বোতাম একই ফোল্ডারের Setup.exe-তে।
+
+## ২৮ অক্টোবর ২০২৬ (বিকেল) — টুলটিপ ও আসল-ব্রাউজার পরীক্ষা
+- প্রতিটা ফিচারে (i) সাহায্য: `ui/help.js`, ৪২টা, English মূল + বাংলা অনুবাদ; অন্য ভাষায় Google Translate লিংক (শুধু সাহায্যের লেখা যায়)।
+- আসল PC-তে পরীক্ষা (`packaging/test/browser-check.mjs`, DevTools দিয়ে): Chrome/Edge/Firefox/Opera-তে পুরো-সাইট ব্লক পাস; অ্যাপ ব্লক ২ সেকেন্ড; Chrome-এ এক্সটেনশন (সাইটের অংশ, শব্দ, ব্লক পাতা) পাস; SafeSearch পাস।
+- **ফাঁক ১ (ঠিক):** পুরনো এক্সটেনশন (1.0.0) ব্রাউজারের নাম পাঠায় না → Chrome-এর রিপোর্টে Edge-ও "Protected" দেখাত। এখন নামহীন রিপোর্ট শুধু তখনই গোনা হয় যখন ওই ধরনের ব্রাউজার একটাই চলছে।
+- **ফাঁক ২ (ঠিক):** Tor Browser `firefox.exe` নামে চলে → Firefox ভেবে ছেড়ে দিত। এখন প্রোগ্রামের ফোল্ডারে `TorBrowser/Tor/tor.exe` থাকলে নাম যাই হোক "Tor Browser" ধরা হয় ও বন্ধ হয়।
+- **ফাঁক ৩ (ঠিক):** "অসমর্থিত ব্রাউজার বন্ধ" আর "এক্সটেনশন ছাড়া ব্রাউজার বন্ধ" এক সুইচে ছিল → Tor আটকাতে গেলে Edge/Firefox-ও বন্ধ হত। এখন দুটো আলাদা; নতুন ইউজারের জন্য প্রথমটা + SafeSearch ডিফল্টে চালু।
+- **বাকি (ইউজারের কাজ):** Edge on home PC শুধু Edge Add-ons স্টোরের এক্সটেনশন force-install করে; Firefox-এ AMO লাগে। দুই স্টোরে প্রকাশের পর এজেন্টে Edge/Firefox-এর আলাদা আইডি বসাতে হবে।
+- মালিকের PC-তে পরীক্ষার জন্য ১ মাস Premium (premium_grants id 1)।
