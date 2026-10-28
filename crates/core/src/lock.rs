@@ -277,27 +277,67 @@ pub fn start_session(
     lock: LockKind,
     now: DateTime<Utc>,
 ) -> Result<Session, PolicyError> {
-    if config.block_list(block_list_id).is_none() {
-        return Err(PolicyError::NotFound {
-            what: "block_list".into(),
-        });
-    }
     if !(1..=MAX_SESSION_MINUTES).contains(&minutes) {
         return Err(PolicyError::Invalid {
             what: "minutes".into(),
         });
     }
-    if let LockKind::RandomText { length } = lock {
-        if !(10..=2000).contains(&length) {
-            return Err(PolicyError::Invalid {
-                what: "lock.length".into(),
-            });
-        }
-    }
-    if lock == LockKind::Partner && config.protection.partner.is_none() {
-        return Err(PolicyError::Invalid {
-            what: "protection.partner".into(),
+    start_session_between(
+        config,
+        block_list_id,
+        now,
+        now + Duration::minutes(minutes),
+        lock,
+        now,
+    )
+}
+
+/// How far ahead a session may be planned.
+pub const MAX_PLAN_AHEAD_DAYS: i64 = 7;
+
+/// A session from `start` to `end` ("block from 4 pm until 7 am tomorrow").
+/// `start` may be now or later (up to a week ahead); a start in the past
+/// counts as now.
+pub fn start_session_between(
+    config: &Config,
+    block_list_id: &str,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    lock: LockKind,
+    now: DateTime<Utc>,
+) -> Result<Session, PolicyError> {
+    let invalid = |w: &str| {
+        Err(PolicyError::Invalid {
+            what: w.to_string(),
+        })
+    };
+    if config.block_list(block_list_id).is_none() {
+        return Err(PolicyError::NotFound {
+            what: "block_list".into(),
         });
+    }
+    let start = start.max(now);
+    if start > now + Duration::days(MAX_PLAN_AHEAD_DAYS) {
+        return invalid("starts_at");
+    }
+    let minutes = (end - start).num_minutes();
+    if !(1..=MAX_SESSION_MINUTES).contains(&minutes) {
+        return invalid("ends_at");
+    }
+    match lock {
+        LockKind::RandomText { length } if !(10..=2000).contains(&length) => {
+            return invalid("lock.length")
+        }
+        LockKind::Partner if config.protection.partner.is_none() => {
+            return invalid("protection.partner")
+        }
+        LockKind::Window {
+            start_minute,
+            end_minute,
+        } if start_minute >= 24 * 60 || end_minute >= 24 * 60 || start_minute == end_minute => {
+            return invalid("lock.window")
+        }
+        _ => {}
     }
     let practice = config.settings.practice_mode_until.is_some_and(|t| now < t);
     let minutes = if practice && lock != LockKind::None {
@@ -308,10 +348,21 @@ pub fn start_session(
     Ok(Session {
         id: crate::new_id(),
         block_list_id: block_list_id.to_string(),
-        started_at: now,
-        ends_at: now + Duration::minutes(minutes),
+        started_at: start,
+        ends_at: start + Duration::minutes(minutes),
         lock,
     })
+}
+
+/// True when `minute` (local minutes since midnight) is inside the daily
+/// window `start..end`, which may cross midnight.
+pub fn in_daily_window(minute: u32, start: u16, end: u16) -> bool {
+    let (s, e) = (start as u32, end as u32);
+    if s < e {
+        (s..e).contains(&minute)
+    } else {
+        minute >= s || minute < e
+    }
 }
 
 /// What the user has done to justify ending a session early.
@@ -324,12 +375,16 @@ pub enum UnlockProof {
     PartnerApproved,
 }
 
+/// Whether a session may be ended now. `local_minute` is the local time of
+/// day (minutes since midnight) for window locks. A planned session that
+/// hasn't started yet follows the same rule: the commitment holds once made.
 pub fn can_end_session(
     session: &Session,
     proof: UnlockProof,
     now: DateTime<Utc>,
+    local_minute: u32,
 ) -> Result<(), PolicyError> {
-    if !session.is_active(now) {
+    if now >= session.ends_at {
         return Ok(());
     }
     let ok = match session.lock {
@@ -338,6 +393,10 @@ pub fn can_end_session(
         LockKind::RandomText { .. } => proof == UnlockProof::ChallengeSolved,
         LockKind::Restart => proof == UnlockProof::Restarted,
         LockKind::Partner => proof == UnlockProof::PartnerApproved,
+        LockKind::Window {
+            start_minute,
+            end_minute,
+        } => in_daily_window(local_minute, start_minute, end_minute),
     };
     if ok {
         Ok(())
@@ -458,11 +517,13 @@ mod tests {
         let now = Utc::now();
         let c = base();
         let s = start_session(&c, "a", 60, LockKind::Timer, now).unwrap();
-        assert!(can_end_session(&s, UnlockProof::ChallengeSolved, now).is_err());
-        assert!(can_end_session(&s, UnlockProof::Nothing, now + Duration::minutes(61)).is_ok());
+        assert!(can_end_session(&s, UnlockProof::ChallengeSolved, now, 600).is_err());
+        assert!(
+            can_end_session(&s, UnlockProof::Nothing, now + Duration::minutes(61), 600).is_ok()
+        );
         let r = start_session(&c, "a", 60, LockKind::RandomText { length: 100 }, now).unwrap();
-        assert!(can_end_session(&r, UnlockProof::ChallengeSolved, now).is_ok());
-        assert!(can_end_session(&r, UnlockProof::Restarted, now).is_err());
+        assert!(can_end_session(&r, UnlockProof::ChallengeSolved, now, 600).is_ok());
+        assert!(can_end_session(&r, UnlockProof::Restarted, now, 600).is_err());
         assert!(start_session(&c, "a", 60, LockKind::Partner, now).is_err());
     }
 
@@ -518,6 +579,86 @@ mod tests {
         free.settings.managed_extension = false;
         free.settings.block_unsupported_browsers = false;
         assert!(validate_update(&unprotected, &free, &State::default(), now).is_ok());
+    }
+
+    #[test]
+    fn planned_sessions_and_end_times() {
+        let now = Utc::now();
+        let c = base();
+        // "From 4 hours from now until 10 hours from now".
+        let s = start_session_between(
+            &c,
+            "a",
+            now + Duration::hours(4),
+            now + Duration::hours(10),
+            LockKind::Timer,
+            now,
+        )
+        .unwrap();
+        assert_eq!(s.started_at, now + Duration::hours(4));
+        assert!(!s.is_active(now));
+        // A planned lock is binding at once: its list is guarded and it can't be cancelled.
+        assert!(s.is_locked(now));
+        let mut st = State::default();
+        st.sessions.push(s.clone());
+        assert!(locked_list_ids(&c, &st, now).contains(&"a".to_string()));
+        assert!(can_end_session(&s, UnlockProof::Nothing, now, 600).is_err());
+        assert!(can_end_session(&s, UnlockProof::Nothing, now + Duration::hours(10), 600).is_ok());
+        // A start in the past counts as now; the end must be after the start.
+        let past = start_session_between(
+            &c,
+            "a",
+            now - Duration::hours(1),
+            now + Duration::hours(1),
+            LockKind::None,
+            now,
+        )
+        .unwrap();
+        assert_eq!(past.started_at, now);
+        assert!(start_session_between(&c, "a", now, now, LockKind::None, now).is_err());
+        assert!(start_session_between(
+            &c,
+            "a",
+            now + Duration::days(8),
+            now + Duration::days(9),
+            LockKind::None,
+            now
+        )
+        .is_err());
+        assert!(
+            start_session_between(&c, "a", now, now + Duration::days(8), LockKind::None, now)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn window_lock_opens_only_in_its_window() {
+        let now = Utc::now();
+        let c = base();
+        // Can only be stopped between 20:00 and 21:00.
+        let w = LockKind::Window {
+            start_minute: 20 * 60,
+            end_minute: 21 * 60,
+        };
+        let s = start_session(&c, "a", 600, w, now).unwrap();
+        assert!(can_end_session(&s, UnlockProof::Nothing, now, 19 * 60 + 59).is_err());
+        assert!(can_end_session(&s, UnlockProof::Nothing, now, 20 * 60).is_ok());
+        assert!(can_end_session(&s, UnlockProof::Nothing, now, 21 * 60).is_err());
+        // Windows may cross midnight (23:00-01:00).
+        assert!(in_daily_window(30, 23 * 60, 60));
+        assert!(in_daily_window(23 * 60 + 5, 23 * 60, 60));
+        assert!(!in_daily_window(12 * 60, 23 * 60, 60));
+        // An empty or impossible window is refused.
+        let empty = LockKind::Window {
+            start_minute: 600,
+            end_minute: 600,
+        };
+        assert!(start_session(&c, "a", 60, empty, now).is_err());
+        let bad = LockKind::Window {
+            start_minute: 0,
+            end_minute: 1440,
+        };
+        assert!(start_session(&c, "a", 60, bad, now).is_err());
     }
 
     #[test]

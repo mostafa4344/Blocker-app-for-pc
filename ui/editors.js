@@ -1,6 +1,7 @@
 // Block lists, schedules and daily limits.
 import { tip } from "/help.js";
-import { S, $, $$, t, presetName, addPreset, num, esc, api, act, cfg, fmtDur, openModal, closeModal, saveConfig, lines, newId, isLocked, listName, minToHHMM, hhmmToMin } from "/core.js";
+import { pickerHTML, mountPicker, ensureTargetList } from "/picker.js";
+import { S, $, $$, t, presetName, addPreset, num, esc, api, act, cfg, fmtDur, openModal, closeModal, saveConfig, toast, lines, newId, isLocked, listName, minToHHMM, hhmmToMin } from "/core.js";
 
 const lockBadge = (on) => (on ? `<span class="badge lock">🔒 ${t("locked")}</span>` : "");
 /** A schedule/limit that can only be tightened: locked itself, or enabled while protection is on. */
@@ -111,6 +112,32 @@ export function renderLists(main) {
 
 // ---------- schedules ----------
 
+/** "+ Site or app" under a list choice: picks one site/app and selects its list. */
+function targetPickerRow(selectId, disabled) {
+  return disabled ? "" : `<div class="stack"><button type="button" class="btn small" data-open-picker="${selectId}">+ ${t("add_target")}</button>
+      <div class="picker-slot" data-for="${selectId}"></div></div>`;
+}
+function wireTargetPicker(m) {
+  $$("[data-open-picker]", m).forEach((b) => b.addEventListener("click", () => {
+    const selectId = b.dataset.openPicker;
+    const slot = $(`.picker-slot[data-for="${selectId}"]`, m);
+    if (slot.innerHTML) {
+      slot.innerHTML = "";
+      return;
+    }
+    slot.innerHTML = pickerHTML();
+    mountPicker(slot, async (target) => {
+      const id = await ensureTargetList(target);
+      if (!id) return;
+      const sel = $(`#${selectId}`, m);
+      sel.innerHTML = listOptions(id);
+      sel.value = id;
+      slot.innerHTML = "";
+    });
+    $(".picker-q", slot)?.focus();
+  }));
+}
+
 function listOptions(selected) {
   // Always-on lists are blocked 24/7 already, so they are not offered (except
   // when an existing item still points at one).
@@ -125,18 +152,20 @@ function daysSummary(days) {
 
 function editSchedule(sched) {
   const isNew = !sched;
-  const s = sched ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id, days: [0, 1, 2, 3, 4], start_minute: 540, end_minute: 1020, enabled: true, locked: false };
+  const s = sched ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id ?? "", days: [0, 1, 2, 3, 4], start_minute: 540, end_minute: 1020, enabled: true, locked: false };
   const names = t("day_names");
   openModal(
     `<h2>${isNew ? t("add_schedule") : t("schedules_title")}</h2>
      ${!isNew && guardedItem(s) ? `<div class="banner warn">${t("lock_schedule")}</div>` : ""}
      <label>${t("choose_list")}<select id="s-list" ${!isNew && guardedItem(s) ? "disabled" : ""}>${listOptions(s.block_list_id)}</select></label>
+     ${targetPickerRow("s-list", !isNew && guardedItem(s))}
      <div class="stack"><span class="hint">${t("days")}</span><div class="chips">${names.map((n, i) => `<button class="chip" data-day="${i}" aria-pressed="${s.days.includes(i)}">${n}</button>`).join("")}</div></div>
      <div class="grid two"><label>${t("start_time")} ${tip("schedule_times")}<input type="time" id="s-start" value="${minToHHMM(s.start_minute)}"></label>
        <label>${t("end_time")}<input type="time" id="s-end" value="${minToHHMM(s.end_minute)}"></label></div>
      <label class="check"><input type="checkbox" id="s-locked" ${s.locked ? "checked" : ""}>${t("lock_schedule")} ${tip("schedule_lock")}</label>
      <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="s-save">${t("save")}</button></div>`,
     (m) => {
+      wireTargetPicker(m);
       const days = new Set(s.days);
       $$("[data-day]", m).forEach((b) => b.addEventListener("click", () => {
         const d = Number(b.dataset.day);
@@ -144,6 +173,7 @@ function editSchedule(sched) {
         b.setAttribute("aria-pressed", days.has(d));
       }));
       $("#s-save", m).addEventListener("click", async () => {
+        if (!$("#s-list", m).value) return toast(t("pick_at_least_one"), true);
         const updated = {
           ...s,
           block_list_id: $("#s-list", m).value,
@@ -165,10 +195,9 @@ function editSchedule(sched) {
 
 export function renderSchedules(main) {
   const items = cfg().schedules;
-  const noLists = !cfg().block_lists.some((b) => !b.always_on);
   main.innerHTML = `
-    <div class="page-head"><div><h1>${t("schedules_title")} ${tip("schedules_overview")}</h1><p class="muted">${t("schedules_intro")}</p></div><button class="btn primary" id="add" ${noLists ? "disabled" : ""}>+ ${t("add_schedule")}</button></div>
-    <div class="list">${items.length === 0 ? `<p class="muted">${t(noLists ? "need_list_first" : "no_schedules")}</p>` : items.map((s) => `
+    <div class="page-head"><div><h1>${t("schedules_title")} ${tip("schedules_overview")}</h1><p class="muted">${t("schedules_intro")}</p></div><button class="btn primary" id="add">+ ${t("add_schedule")}</button></div>
+    <div class="list">${items.length === 0 ? `<p class="muted">${t("no_schedules")}</p>` : items.map((s) => `
       <div class="item">
         <div><div class="row"><strong>${esc(listName(s.block_list_id))}</strong>${lockBadge(guardedItem(s))}</div>
           <div class="meta">${daysSummary(s.days)} · ${num(minToHHMM(s.start_minute))}–${num(minToHHMM(s.end_minute))}</div></div>
@@ -193,15 +222,17 @@ export function renderSchedules(main) {
 
 function editLimit(limit) {
   const isNew = !limit;
-  const l = limit ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id, daily_minutes: 30, max_opens: null, enabled: true, locked: false };
+  const l = limit ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id ?? "", daily_minutes: 30, max_opens: null, enabled: true, locked: false };
   openModal(
     `<h2>${isNew ? t("add_limit") : t("limits_title")}</h2>
      <label>${t("choose_list")}<select id="m-list" ${!isNew && guardedItem(l) ? "disabled" : ""}>${listOptions(l.block_list_id)}</select></label>
+     ${targetPickerRow("m-list", !isNew && guardedItem(l))}
      <label>${t("daily_minutes")} ${tip("limit_minutes")}<input type="number" id="m-min" min="0" max="1440" value="${l.daily_minutes}"></label>
      <label>${t("max_opens")} ${tip("limit_opens")}<input type="number" id="m-opens" min="1" max="500" value="${l.max_opens ?? ""}"></label>
      <label class="check"><input type="checkbox" id="m-locked" ${l.locked ? "checked" : ""}>${t("lock_limit")} ${tip("limit_lock")}</label>
      <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="m-save">${t("save")}</button></div>`,
-    (m) => $("#m-save", m).addEventListener("click", async () => {
+    (m) => { wireTargetPicker(m); $("#m-save", m).addEventListener("click", async () => {
+      if (!$("#m-list", m).value) return toast(t("pick_at_least_one"), true);
       const opens = $("#m-opens", m).value.trim();
       const updated = {
         ...l,
@@ -216,17 +247,16 @@ function editLimit(limit) {
         else c.limits.push(updated);
       });
       if (ok === true) closeModal();
-    }),
+    }); },
   );
 }
 
 export function renderLimits(main) {
   const items = cfg().limits;
   const usage = S.status.usage_today;
-  const noLists = !cfg().block_lists.some((b) => !b.always_on);
   main.innerHTML = `
-    <div class="page-head"><div><h1>${t("limits_title")} ${tip("limits_overview")}</h1><p class="muted">${t("limits_intro")}</p></div><button class="btn primary" id="add" ${noLists ? "disabled" : ""}>+ ${t("add_limit")}</button></div>
-    <div class="list">${items.length === 0 ? `<p class="muted">${t(noLists ? "need_list_first" : "no_limits")}</p>` : items.map((l) => {
+    <div class="page-head"><div><h1>${t("limits_title")} ${tip("limits_overview")}</h1><p class="muted">${t("limits_intro")}</p></div><button class="btn primary" id="add">+ ${t("add_limit")}</button></div>
+    <div class="list">${items.length === 0 ? `<p class="muted">${t("no_limits")}</p>` : items.map((l) => {
       const u = usage.find((x) => x.limit_id === l.id) ?? { seconds: 0, opens: 0 };
       const pct = l.daily_minutes ? Math.min(100, Math.round((u.seconds / (l.daily_minutes * 60)) * 100)) : 100;
       return `

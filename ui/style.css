@@ -188,3 +188,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .hero-split { grid-template-columns: minmax(0, 1fr); }
   .hero-split .unlock-col { border-inline-start: 0; padding-inline-start: 0; border-top: 1px solid var(--border); padding-top: 16px; }
 }
+
+/* "Choose a website or app" picker */
+.picker { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--surface-2); }
+.picker-q { width: 100%; }
+.pick-sec { display: grid; gap: 6px; margin-top: 4px; }
+.pick-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 240px; overflow: auto; }
+.pick-opt { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.pick-opt:hover, .pick-opt:focus-visible { border-color: var(--primary); background: var(--primary-soft); outline: none; }
+.pick-opt small { font-size: .78rem; }
+/* The one-sentence summary above Start */
+.summary { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); font-weight: 500; }

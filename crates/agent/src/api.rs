@@ -35,6 +35,7 @@ static LANG_UR_JS: &str = include_str!("../../../ui/lang-ur.js");
 static LANG_ID_JS: &str = include_str!("../../../ui/lang-id.js");
 static LANG_TR_JS: &str = include_str!("../../../ui/lang-tr.js");
 static HELP_JS: &str = include_str!("../../../ui/help.js");
+static PICKER_JS: &str = include_str!("../../../ui/picker.js");
 static STYLE_CSS: &str = include_str!("../../../ui/style.css");
 static ICON_SVG: &str = include_str!("../../../ui/icon.svg");
 
@@ -156,6 +157,7 @@ fn handle(app: &App, port: u16, mut req: Request) {
             "/lang-id.js" => Some(("text/javascript; charset=utf-8", LANG_ID_JS)),
             "/lang-tr.js" => Some(("text/javascript; charset=utf-8", LANG_TR_JS)),
             "/help.js" => Some(("text/javascript; charset=utf-8", HELP_JS)),
+            "/picker.js" => Some(("text/javascript; charset=utf-8", PICKER_JS)),
             "/style.css" => Some(("text/css; charset=utf-8", STYLE_CSS)),
             "/icon.svg" | "/favicon.ico" => Some(("image/svg+xml", ICON_SVG)),
             _ => None,
@@ -231,7 +233,13 @@ fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
 #[derive(Deserialize)]
 struct StartSession {
     block_list_id: String,
+    /// Length from now; or give `ends_at` (and optionally `starts_at`) instead.
+    #[serde(default)]
     minutes: i64,
+    #[serde(default)]
+    starts_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    ends_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default = "no_lock")]
     lock: LockKind,
 }
@@ -319,6 +327,7 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
     let seg: Vec<&str> = path.trim_matches('/').split('/').collect();
     match (method, seg.as_slice()) {
         (Method::Get, ["api", "status"]) => app.status(),
+        (Method::Get, ["api", "apps"]) => app.pick_suggestions(),
         (Method::Put, ["api", "config"]) => app.update_config(parse::<Config>(body)?),
         (Method::Post, ["api", "presets", id]) => {
             app.add_preset(id, parse::<PresetBody>(body)?.name.as_deref())
@@ -327,7 +336,7 @@ fn route(app: &App, method: &Method, path: &str, query: &str, body: &str) -> Api
 
         (Method::Post, ["api", "sessions"]) => {
             let b: StartSession = parse(body)?;
-            app.start_session(&b.block_list_id, b.minutes, b.lock)
+            app.start_session(&b.block_list_id, b.minutes, b.starts_at, b.ends_at, b.lock)
         }
         (Method::Post, ["api", "sessions", id, "extend"]) => {
             app.extend_session(id, parse::<Minutes>(body)?.minutes)

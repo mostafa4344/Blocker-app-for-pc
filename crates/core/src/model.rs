@@ -217,6 +217,9 @@ pub enum LockKind {
     Restart,
     /// Needs the accountability partner's approval.
     Partner,
+    /// Can only be stopped during a daily time window (local minutes since
+    /// midnight; the window may cross midnight, e.g. 23:00-01:00).
+    Window { start_minute: u16, end_minute: u16 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -232,8 +235,11 @@ impl Session {
     pub fn is_active(&self, now: DateTime<Utc>) -> bool {
         self.started_at <= now && now < self.ends_at
     }
+    /// Locked from the moment it is set up until it ends. A session planned
+    /// for later is already binding: otherwise its list could be emptied, or
+    /// the session cancelled, a minute before it starts.
     pub fn is_locked(&self, now: DateTime<Utc>) -> bool {
-        self.is_active(now) && self.lock != LockKind::None
+        now < self.ends_at && self.lock != LockKind::None
     }
 }
 

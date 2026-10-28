@@ -7,7 +7,7 @@ use std::io;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration as StdDuration, Instant};
 
-use chrono::{DateTime, Duration, Local, TimeZone, Utc};
+use chrono::{DateTime, Duration, Local, TimeZone, Timelike, Utc};
 use serde_json::{json, Value};
 
 use contentguard_core::challenge::{self, Challenge};
@@ -456,19 +456,72 @@ impl App {
         Ok(json!({ "ok": true }))
     }
 
+    /// What the "choose what to block" picker offers: what this person used
+    /// most in the last 7 days (sites and apps), programs installed on the
+    /// computer, and programs running now.
+    pub fn pick_suggestions(&self) -> ApiResult {
+        let top = {
+            let mut g = self.lock();
+            let inner = &mut *g;
+            let now = self.now(inner);
+            let since = (now.local.date() - Duration::days(6))
+                .format("%Y-%m-%d")
+                .to_string();
+            let mut totals: Vec<(String, u64)> = Vec::new();
+            for s in inner
+                .state
+                .stats
+                .iter()
+                .filter(|s| s.day >= since && s.seconds > 0)
+            {
+                match totals.iter_mut().find(|(k, _)| *k == s.key) {
+                    Some(t) => t.1 += s.seconds,
+                    None => totals.push((s.key.clone(), s.seconds)),
+                }
+            }
+            totals.sort_by_key(|a| std::cmp::Reverse(a.1));
+            totals
+                .into_iter()
+                .take(12)
+                .filter_map(|(k, secs)| {
+                    let (kind, name) = k.split_once(':')?;
+                    Some(json!({ "kind": kind, "name": name, "seconds": secs }))
+                })
+                .collect::<Vec<_>>()
+        };
+        Ok(json!({
+            "top": top,
+            "installed": crate::apps::installed(),
+            "running": crate::apps::running(),
+        }))
+    }
+
     // ----- Sessions -----
 
     pub fn start_session(
         &self,
         block_list_id: &str,
         minutes: i64,
+        starts_at: Option<DateTime<Utc>>,
+        ends_at: Option<DateTime<Utc>>,
         lock_kind: LockKind,
     ) -> ApiResult {
         let mut g = self.lock();
         let inner = &mut *g;
         let now = self.now(inner);
         self.require_license(inner, now.utc)?;
-        let s = lock::start_session(&inner.config, block_list_id, minutes, lock_kind, now.utc)?;
+        // Times are judged by the trusted clock, never the computer's.
+        let s = match ends_at {
+            Some(end) => lock::start_session_between(
+                &inner.config,
+                block_list_id,
+                starts_at.unwrap_or(now.utc),
+                end,
+                lock_kind,
+                now.utc,
+            )?,
+            None => lock::start_session(&inner.config, block_list_id, minutes, lock_kind, now.utc)?,
+        };
         let v = json!(s);
         inner.state.sessions.push(s);
         self.save_state(inner)?;
@@ -542,7 +595,8 @@ impl App {
             }
             _ => UnlockProof::Nothing,
         };
-        lock::can_end_session(&session, proof, now.utc)?;
+        let local_minute = now.local.hour() * 60 + now.local.minute();
+        lock::can_end_session(&session, proof, now.utc, local_minute)?;
         inner.state.sessions.remove(idx);
         if proof == UnlockProof::ChallengeSolved {
             inner.state.challenge = None;

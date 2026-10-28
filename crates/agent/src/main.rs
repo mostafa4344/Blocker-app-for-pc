@@ -10,6 +10,7 @@
 
 mod api;
 mod app;
+mod apps;
 mod browserpolicy;
 mod dns;
 mod enforce;
