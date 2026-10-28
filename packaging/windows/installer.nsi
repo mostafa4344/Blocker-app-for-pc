@@ -102,6 +102,8 @@ Section "Install"
   RMDir /r "$PROGRAMFILES64\HTL Content Guard PC"
 
   File "/oname=contentguard-agent.exe" "${AGENT}"
+  ; The app logo, used by the Start-menu shortcut and Apps & features.
+  File "appicon.ico"
   RMDir /r "$INSTDIR\extension"
   File /r /x test "${EXTDIR}"
 
@@ -141,12 +143,12 @@ Section "Install"
     StrCpy $2 "$PROGRAMFILES32\Google\Chrome\Application\chrome.exe"
   ${EndIf}
   ${If} $2 != ""
-    CreateShortCut "$SMPROGRAMS\${APPNAME}.lnk" "$2" "--app=${URL} --window-size=1120,820" "$INSTDIR\contentguard-agent.exe" 0
+    CreateShortCut "$SMPROGRAMS\${APPNAME}.lnk" "$2" "--app=${URL} --window-size=1120,820" "$INSTDIR\appicon.ico" 0
   ${Else}
     FileOpen $0 "$SMPROGRAMS\${APPNAME}.url" w
     FileWrite $0 "[InternetShortcut]$\r$\n"
     FileWrite $0 "URL=${URL}$\r$\n"
-    FileWrite $0 "IconFile=$INSTDIR\contentguard-agent.exe$\r$\n"
+    FileWrite $0 "IconFile=$INSTDIR\appicon.ico$\r$\n"
     FileWrite $0 "IconIndex=0$\r$\n"
     FileClose $0
   ${EndIf}
@@ -156,7 +158,7 @@ Section "Install"
   WriteRegStr   HKLM "${REGKEY}" "DisplayName"     "${APPNAME}"
   WriteRegStr   HKLM "${REGKEY}" "DisplayVersion"  "${VERSION}"
   WriteRegStr   HKLM "${REGKEY}" "Publisher"       "Halal Tech Life"
-  WriteRegStr   HKLM "${REGKEY}" "DisplayIcon"     "$INSTDIR\contentguard-agent.exe"
+  WriteRegStr   HKLM "${REGKEY}" "DisplayIcon"     "$INSTDIR\appicon.ico"
   WriteRegStr   HKLM "${REGKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr   HKLM "${REGKEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "${REGKEY}" "NoModify" 1
@@ -191,6 +193,7 @@ Section "Uninstall"
   Delete "$INSTDIR\contentguard-agent.exe"
   Delete "$INSTDIR\contentguard-agent.old"
   Delete "$INSTDIR\uninstall.exe"
+  Delete "$INSTDIR\appicon.ico"
   RMDir "$INSTDIR"
   DeleteRegKey HKLM "${REGKEY}"
 SectionEnd
