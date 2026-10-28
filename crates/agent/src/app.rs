@@ -821,8 +821,11 @@ impl App {
             .insert(family.to_string(), Instant::now());
         let (_, policy) = self.advance(inner);
         Ok(json!({
-            "blocked_sites": policy.blocked_sites,
-            "keywords": policy.keywords,
+            // Only rules no exception touches are blocked instantly by the
+            // extension; pages near an exception are checked with the agent
+            // (`/api/ext/activity`), which knows each list's exceptions.
+            "blocked_sites": policy.ext_sites,
+            "keywords": policy.ext_keywords,
             "allowlist_active": policy.allowlist_active,
             "allowed_sites": policy.allowed_sites,
             "active": policy.active,

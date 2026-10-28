@@ -98,7 +98,12 @@ fn list_is_stricter(new: &BlockList, old: &BlockList) -> bool {
     } else {
         superset(&new.sites, &old.sites)
     };
-    sites_ok && superset(&new.apps, &old.apps) && superset(&new.keywords, &old.keywords)
+    // Exceptions only shrink: adding one would open part of a locked list.
+    sites_ok
+        && superset(&new.apps, &old.apps)
+        && superset(&new.keywords, &old.keywords)
+        && superset(&old.allow_sites, &new.allow_sites)
+        && superset(&old.allow_apps, &new.allow_apps)
 }
 
 /// Validates replacing `old` with `new` given what is currently locked.
@@ -239,6 +244,13 @@ pub fn validate_shape(c: &Config) -> Result<(), PolicyError> {
         }
         if b.name.trim().is_empty() {
             return invalid("block_list.name");
+        }
+        // An exception must be a real site or page: "*" would allow everything.
+        if b.allow_sites
+            .iter()
+            .any(|a| crate::matcher::SiteRule::parse(a).is_none_or(|r| r.domain.is_empty()))
+        {
+            return invalid("block_list.allow_sites");
         }
     }
     for s in &c.schedules {
@@ -722,6 +734,22 @@ mod tests {
         let mut sched_off = old.clone();
         sched_off.schedules[0].enabled = false;
         assert!(validate_update(&old, &sched_off, &st, now).is_err());
+        // Exceptions can be removed but not added while the list is guarded.
+        let mut excepted = old.clone();
+        excepted.block_lists[0]
+            .allow_sites
+            .push("ok.example.com".into());
+        assert!(validate_update(&old, &excepted, &st, now).is_err());
+        let mut with_exc = old.clone();
+        with_exc.block_lists[0].allow_sites = vec!["ok.example.com".into()];
+        let mut removed = with_exc.clone();
+        removed.block_lists[0].allow_sites.clear();
+        assert!(validate_update(&with_exc, &removed, &st, now).is_ok());
+        // "*" can never be an exception.
+        let mut star = loose.clone();
+        star.protection = Protection::default();
+        star.block_lists[0].allow_sites = vec!["*".into()];
+        assert!(validate_shape(&star).is_err());
         // A ready-made list can't lose its tag (it would stop getting updates).
         let mut tagged = old.clone();
         tagged.block_lists[0].preset = "adult".into();

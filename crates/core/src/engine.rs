@@ -3,7 +3,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Serialize;
 
-use crate::matcher::{app_matches, host_of, keyword_matches, site_matches};
+use crate::matcher::{app_matches, host_of, keyword_matches, site_matches, SiteRule};
 use crate::model::{BlockList, Config, DailyStat, Limit, State, Usage};
 use crate::schedule;
 
@@ -49,12 +49,52 @@ pub struct Metered {
     pub opens_left: Option<u32>,
 }
 
+/// One active list's rules, kept apart so its exceptions only lift its own blocks.
+#[derive(Debug, Clone, Serialize, PartialEq, Default)]
+pub struct ListRules {
+    pub sites: Vec<String>,
+    pub apps: Vec<String>,
+    pub keywords: Vec<String>,
+    pub allow_sites: Vec<String>,
+    pub allow_apps: Vec<String>,
+}
+
+impl ListRules {
+    fn from(list: &BlockList) -> Self {
+        ListRules {
+            sites: list.sites.clone(),
+            apps: list.apps.clone(),
+            keywords: list.keywords.clone(),
+            allow_sites: list.allow_sites.clone(),
+            allow_apps: list.allow_apps.clone(),
+        }
+    }
+    fn blocks_url(&self, url: &str) -> bool {
+        (site_matches(&self.sites, url) || keyword_matches(&self.keywords, url))
+            && !site_matches(&self.allow_sites, url)
+    }
+    fn blocks_app(&self, process_name: &str) -> bool {
+        app_matches(&self.apps, process_name) && !app_matches(&self.allow_apps, process_name)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Default)]
 pub struct Policy {
     pub active: Vec<ActiveBlock>,
+    /// Every blocked site rule (for the hosts file; see `host_exceptions`).
     pub blocked_sites: Vec<String>,
     pub blocked_apps: Vec<String>,
     pub keywords: Vec<String>,
+    /// Site rules / words the browser extension may block instantly: those not
+    /// touched by an exception. The rest is decided per page by the agent
+    /// (`url_blocked`), which knows which list each exception belongs to.
+    pub ext_sites: Vec<String>,
+    pub ext_keywords: Vec<String>,
+    /// Domains left out of the hosts file because of an exception, when no
+    /// other active list blocks them.
+    pub host_exceptions: Vec<String>,
+    /// Per-list rules (the source of truth for pages and apps).
+    pub rules: Vec<ListRules>,
     /// When true, only `allowed_sites` may be visited.
     pub allowlist_active: bool,
     pub allowed_sites: Vec<String>,
@@ -90,14 +130,24 @@ impl Policy {
         if is_internal(url) {
             return false;
         }
-        if site_matches(&self.blocked_sites, url) || keyword_matches(&self.keywords, url) {
+        if self.rules.iter().any(|r| r.blocks_url(url)) {
             return true;
         }
         self.allowlist_active && !site_matches(&self.allowed_sites, url)
     }
 
     pub fn app_blocked(&self, process_name: &str) -> bool {
-        app_matches(&self.blocked_apps, process_name)
+        self.rules.iter().any(|r| r.blocks_app(process_name))
+    }
+
+    /// Whether a hosts-file entry should be left out because of an exception.
+    pub fn host_excepted(&self, host: &str) -> bool {
+        self.host_exceptions.iter().any(|e| {
+            host == e
+                || (host.len() > e.len()
+                    && host.ends_with(e.as_str())
+                    && host.as_bytes()[host.len() - e.len() - 1] == b'.')
+        })
     }
 }
 
@@ -206,18 +256,60 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
         if list.allowlist_mode {
             p.allowlist_active = true;
             push_unique(&mut p.allowed_sites, &list.sites);
-        } else {
-            push_unique(&mut p.blocked_sites, &list.sites);
+            push_unique(&mut p.blocked_apps, &list.apps);
+            p.rules.push(ListRules {
+                apps: list.apps.clone(),
+                allow_apps: list.allow_apps.clone(),
+                ..Default::default()
+            });
+            continue;
         }
+        push_unique(&mut p.blocked_sites, &list.sites);
         push_unique(&mut p.blocked_apps, &list.apps);
         push_unique(&mut p.keywords, &list.keywords);
+        let excepted: Vec<SiteRule> = list
+            .allow_sites
+            .iter()
+            .filter_map(|a| SiteRule::parse(a))
+            .collect();
+        let touched = |s: &String| {
+            SiteRule::parse(s).is_some_and(|r| {
+                excepted
+                    .iter()
+                    .any(|a| r.matches_host(&a.domain) || a.matches_host(&r.domain))
+            })
+        };
+        let untouched: Vec<String> = list.sites.iter().filter(|s| !touched(s)).cloned().collect();
+        push_unique(&mut p.ext_sites, &untouched);
+        if excepted.is_empty() {
+            push_unique(&mut p.ext_keywords, &list.keywords);
+        }
+        p.rules.push(ListRules::from(list));
+    }
+    // An exception keeps a domain out of the hosts file only if no other
+    // active list (without that exception) blocks it there.
+    for (i, r) in p.rules.iter().enumerate() {
+        for a in r.allow_sites.iter().filter_map(|a| SiteRule::parse(a)) {
+            if a.domain.is_empty() || !site_matches(&r.sites, &format!("https://{}/", a.domain)) {
+                continue;
+            }
+            let probe = format!("https://{}/", a.domain);
+            let elsewhere = p.rules.iter().enumerate().any(|(j, o)| {
+                j != i && site_matches(&o.sites, &probe) && !site_matches(&o.allow_sites, &probe)
+            });
+            if !elsewhere && !p.host_exceptions.contains(&a.domain) {
+                p.host_exceptions.push(a.domain.clone());
+            }
+        }
     }
     p.active = active;
     p
 }
 
 fn list_matches_url(list: &BlockList, url: &str) -> bool {
-    !list.allowlist_mode && (site_matches(&list.sites, url) || keyword_matches(&list.keywords, url))
+    !list.allowlist_mode
+        && (site_matches(&list.sites, url) || keyword_matches(&list.keywords, url))
+        && !site_matches(&list.allow_sites, url)
 }
 
 /// Limits whose block list matches the URL.
@@ -240,9 +332,9 @@ pub fn limits_for_app<'a>(config: &'a Config, process_name: &str) -> Vec<&'a Lim
         .iter()
         .filter(|l| {
             l.enabled
-                && config
-                    .block_list(&l.block_list_id)
-                    .is_some_and(|b| app_matches(&b.apps, process_name))
+                && config.block_list(&l.block_list_id).is_some_and(|b| {
+                    app_matches(&b.apps, process_name) && !app_matches(&b.allow_apps, process_name)
+                })
         })
         .collect()
 }
@@ -352,6 +444,7 @@ mod tests {
                     allowlist_mode: false,
                     always_on: false,
                     preset: String::new(),
+                    ..Default::default()
                 },
                 BlockList {
                     id: "work".into(),
@@ -468,5 +561,75 @@ mod tests {
         record_usage(&mut state, &["l".into()], &now.day(), 1, true);
         record_usage(&mut state, &["l".into()], &now.day(), 1, true);
         assert!(!effective_policy(&c, &state, now).is_empty());
+    }
+
+    fn always(id: &str, sites: &[&str], keywords: &[&str], allow: &[&str]) -> BlockList {
+        let v = |x: &[&str]| x.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        BlockList {
+            id: id.into(),
+            name: id.into(),
+            sites: v(sites),
+            keywords: v(keywords),
+            allow_sites: v(allow),
+            always_on: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn exceptions_lift_only_their_own_list() {
+        let now = now_at(10);
+        let st = State::default();
+        // Video list blocks YouTube but allows one educational channel.
+        let mut c = Config::default();
+        c.block_lists.push(always(
+            "video",
+            &["youtube.com"],
+            &[],
+            &["youtube.com/@khanacademy"],
+        ));
+        let p = effective_policy(&c, &st, now);
+        assert!(p.url_blocked("https://www.youtube.com/watch?v=1"));
+        assert!(!p.url_blocked("https://www.youtube.com/@khanacademy/videos"));
+        // The extension mustn't block YouTube instantly (it would hit the
+        // exception); the agent decides those pages. Path exceptions keep the
+        // domain out of the hosts file too.
+        assert!(p.ext_sites.is_empty());
+        assert!(p.host_excepted("youtube.com") && p.host_excepted("www.youtube.com"));
+
+        // Another list that blocks YouTube without that exception still wins.
+        c.block_lists
+            .push(always("social", &["youtube.com", "facebook.com"], &[], &[]));
+        let p = effective_policy(&c, &st, now);
+        assert!(p.url_blocked("https://www.youtube.com/@khanacademy/videos"));
+        assert!(!p.host_excepted("youtube.com"));
+        assert!(p.ext_sites.contains(&"facebook.com".to_string()));
+    }
+
+    #[test]
+    fn exceptions_for_subdomains_words_and_apps() {
+        let now = now_at(10);
+        let st = State::default();
+        let mut c = Config::default();
+        // Block Google except Gmail; block "sex-" words except a university site.
+        c.block_lists.push(always(
+            "g",
+            &["google.com"],
+            &["sex-"],
+            &["mail.google.com", "essex-uni.ac.uk"],
+        ));
+        let mut games = always("games", &[], &[], &[]);
+        games.apps = vec!["steam.exe".into(), "minecraft.exe".into()];
+        games.allow_apps = vec!["minecraft.exe".into()];
+        c.block_lists.push(games);
+        let p = effective_policy(&c, &st, now);
+        assert!(p.url_blocked("https://google.com/search?q=x"));
+        assert!(!p.url_blocked("https://mail.google.com/mail/u/0"));
+        assert!(p.host_excepted("mail.google.com") && !p.host_excepted("google.com"));
+        assert!(p.url_blocked("https://some-sex-site.example/"));
+        assert!(!p.url_blocked("https://www.essex-uni.ac.uk/sex-education"));
+        // A list with exceptions doesn't hand its words to the extension.
+        assert!(p.ext_keywords.is_empty());
+        assert!(p.app_blocked("Steam.exe") && !p.app_blocked("minecraft.exe"));
     }
 }

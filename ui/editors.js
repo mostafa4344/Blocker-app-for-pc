@@ -14,8 +14,27 @@ const SENSITIVE_PRESETS = ["adult", "gambling", "dating"];
 const isSensitive = (l) => SENSITIVE_PRESETS.includes(l.preset) || (!l.preset && l.keywords.some((k) => /porn|xxx|hentai/i.test(k)));
 const merge = (a, b) => [...a, ...b.filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()))];
 
+/** Splits typed exceptions into websites/pages and apps ("minecraft.exe", "Discord"). */
+function splitAllowed(text) {
+  const sites = [];
+  const apps = [];
+  for (const raw of lines(text)) {
+    const v = raw.replace(/^["'\[\]]+|["'\[\]]+$/g, "").trim();
+    if (!v) continue;
+    if (/\.exe$/i.test(v) || !/[./]/.test(v)) {
+      apps.push(v);
+    } else {
+      const site = v.toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
+      if (site && site !== "*") sites.push(site);
+    }
+  }
+  return { sites, apps };
+}
+const allowedText = (l) => [...(l.allow_sites || []), ...(l.allow_apps || [])].join("\n");
+
 function countLine(l) {
-  const parts = [["count_sites", l.sites], ["count_apps", l.apps], ["count_words", l.keywords]]
+  const parts = [["count_sites", l.sites], ["count_apps", l.apps], ["count_words", l.keywords],
+    ["count_allowed", [...(l.allow_sites || []), ...(l.allow_apps || [])]]]
     .filter(([, v]) => v.length > 0)
     .map(([k, v]) => t(k, { n: num(v.length) }));
   return parts.length ? parts.join(" · ") : t("count_empty");
@@ -23,7 +42,7 @@ function countLine(l) {
 
 function editList(list) {
   const isNew = !list;
-  const l = list ?? { id: newId(), name: "", sites: [], apps: [], keywords: [], allowlist_mode: false, always_on: false, preset: "" };
+  const l = list ?? { id: newId(), name: "", sites: [], apps: [], keywords: [], allow_sites: [], allow_apps: [], allowlist_mode: false, always_on: false, preset: "" };
   const locked = !isNew && isLocked(l.id);
   const hidden = !isNew && isSensitive(l);
   const contents = hidden
@@ -34,15 +53,21 @@ function editList(list) {
        <label>${t("apps")} ${tip("list_apps")}<span class="hint">${t("apps_hint")}</span><textarea id="l-apps">${esc(l.apps.join("\n"))}</textarea></label>
        <label>${t("keywords")} ${tip("list_keywords")}<textarea id="l-keywords">${esc(l.keywords.join("\n"))}</textarea></label>
        <label class="check"><input type="checkbox" id="l-allow" ${l.allowlist_mode ? "checked" : ""} ${locked ? "disabled" : ""}>${t("allowlist_mode")} ${tip("allowlist")}</label>`;
+  const allowBox = l.allowlist_mode ? "" : `
+     <label>${t("allow_exceptions")} ${tip("allow_exceptions")}<span class="hint">${t(locked ? "allow_locked_note" : "allow_hint")}</span>
+       <textarea id="l-allowed" placeholder="youtube.com/@khanacademy&#10;mail.google.com&#10;minecraft.exe">${esc(allowedText(l))}</textarea></label>`;
   openModal(
     `<h2>${isNew ? t("add_list") : esc(l.name)}</h2>
      ${locked ? `<div class="banner warn">${t("list_locked_note")}</div>` : ""}
      <label>${t("name")}<input type="text" id="l-name" value="${esc(l.name)}" maxlength="60"></label>
      ${contents}
+     ${allowBox}
      <label class="check"><input type="checkbox" id="l-always" ${l.always_on ? "checked" : ""} ${locked && l.always_on ? "disabled" : ""}><span>${t("always_on")} ${tip("always_on")}<span class="hint">${t("always_on_hint")}</span></span></label>
      <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="l-save">${t("save")}</button></div>`,
     (m) => {
       $("#l-save", m).addEventListener("click", async () => {
+        const allowed = $("#l-allowed", m) ? splitAllowed($("#l-allowed", m).value) : { sites: l.allow_sites || [], apps: l.allow_apps || [] };
+        const exceptions = { allow_sites: allowed.sites, allow_apps: allowed.apps };
         const updated = hidden
           ? {
               ...l,
@@ -50,6 +75,7 @@ function editList(list) {
               sites: merge(l.sites, lines($("#l-sites", m).value)),
               keywords: merge(l.keywords, lines($("#l-keywords", m).value)),
               always_on: $("#l-always", m).checked,
+              ...exceptions,
             }
           : {
               ...l,
@@ -59,6 +85,7 @@ function editList(list) {
               keywords: lines($("#l-keywords", m).value),
               allowlist_mode: $("#l-allow", m).checked,
               always_on: $("#l-always", m).checked,
+              ...exceptions,
             };
         const ok = await saveConfig((c) => {
           const i = c.block_lists.findIndex((b) => b.id === l.id);

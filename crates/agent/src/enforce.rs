@@ -39,7 +39,7 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut applied_policy: Option<Option<crate::browserpolicy::Identity>> = None;
     let mut last_policy_reassert = Instant::now();
     let mut last_hosts_check = Instant::now();
-    let mut cached_sites: Vec<String> = Vec::new();
+    let mut cached_sites: (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
     let mut cached_hosts: Vec<String> = Vec::new();
     let mut applied_private: Option<bool> = None;
     let mut last_private_check = Instant::now();
@@ -62,9 +62,15 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         // Websites (hosts file) + SafeSearch redirects. Rewritten only when the
         // desired entries change; a failed write is retried on the next tick.
         // Recomputed only when the blocked sites change (big lists are costly).
-        if cached_sites != policy.blocked_sites {
-            cached_hosts = hosts::hosts_for(&policy.blocked_sites);
-            cached_sites = policy.blocked_sites.clone();
+        let key = (policy.blocked_sites.clone(), policy.host_exceptions.clone());
+        if cached_sites != key {
+            // Exceptions (e.g. "mail.google.com" in a list that blocks google.com)
+            // stay reachable, unless another active list blocks them too.
+            cached_hosts = hosts::hosts_for(&policy.blocked_sites)
+                .into_iter()
+                .filter(|h| !policy.host_excepted(h))
+                .collect();
+            cached_sites = key;
         }
         let wanted = cached_hosts.clone();
         let safe = safe_search

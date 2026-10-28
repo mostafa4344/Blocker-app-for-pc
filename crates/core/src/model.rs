@@ -54,6 +54,12 @@ pub struct BlockList {
     /// Blocked 24/7 without needing a session or schedule (e.g. adult content).
     /// While protection is on, an always-on list can only be made stricter.
     pub always_on: bool,
+    /// Exceptions: websites or pages this list never blocks, even when its
+    /// sites or words match (e.g. `youtube.com/@khanacademy`, `mail.google.com`).
+    /// They only lift this list's own blocks: another list can still block them.
+    pub allow_sites: Vec<String>,
+    /// Exceptions for apps: programs this list never closes (e.g. `minecraft.exe`).
+    pub allow_apps: Vec<String>,
     /// Id of the ready-made preset this list came from (empty for custom lists).
     /// The UI hides the contents of sensitive presets (adult, gambling, dating)
     /// so the block list never turns into a list of triggers.

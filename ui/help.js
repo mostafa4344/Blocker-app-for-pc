@@ -96,6 +96,16 @@ export const HELP = {
         "While protection is on, an always-on list can't be switched off or emptied. You can only add to it."],
       note: "Always-on lists are not offered in Focus sessions, Schedules or Limits because they are already blocked all the time.",
     },
+    allow_exceptions: {
+      t: "Always allowed (exceptions)",
+      p: ["Some things in a blocked list are still useful: one YouTube channel for study, Gmail inside Google, or a game you allow. Write them here and this list leaves them open while it blocks everything else.",
+        "An exception only lifts this list's own block. If another list that is active at the same time blocks the same site, it stays blocked."],
+      how: ["A whole site: mail.google.com",
+        "One page or channel: youtube.com/@khanacademy (pages work in browsers with the extension; whole sites work everywhere)",
+        "An app: minecraft.exe",
+        "One per line. http://, www. and the trailing / are removed for you."],
+      note: "Adding an exception makes a list weaker, so while protection is on exceptions can only be removed, not added. Lower protection first if you really need one.",
+    },
     hidden_list: {
       t: "Why this list is hidden",
       p: ["For sensitive topics, seeing the list of sites can itself pull you back. So the app shows only how many items it contains, never the items themselves.",
@@ -360,6 +370,16 @@ export const HELP = {
       p: ["লিস্টটা প্রতিদিন প্রতি মিনিট ব্লক থাকে, কোনো সেশন বা সময়সূচি লাগে না। যা কখনো দেখতে চান না (যেমন অ্যাডাল্ট সাইট বা জুয়া), তার জন্য এটাই ঠিক।",
         "সুরক্ষা চালু থাকলে সবসময়-ব্লক লিস্ট বন্ধ বা খালি করা যায় না, শুধু যোগ করা যায়।"],
       note: "এই লিস্ট ফোকাস সেশন, সময়সূচি বা সীমায় দেখানো হয় না, কারণ এগুলো এমনিতেই সবসময় ব্লক।",
+    },
+    allow_exceptions: {
+      t: "সবসময় অনুমোদিত (ব্যতিক্রম)",
+      p: ["ব্লক লিস্টের কিছু জিনিস তবুও কাজের হতে পারে: পড়াশোনার একটা YouTube চ্যানেল, Google-এর মধ্যে Gmail, বা অনুমতি দেওয়া কোনো গেম। এখানে লিখুন — লিস্টটা বাকি সব ব্লক করলেও এগুলো খোলা রাখবে।",
+        "ব্যতিক্রম শুধু এই লিস্টের নিজের ব্লক তোলে। একই সময়ে চালু অন্য কোনো লিস্ট একই সাইট ব্লক করলে সেটা ব্লকই থাকবে।"],
+      how: ["পুরো সাইট: mail.google.com",
+        "একটা পাতা বা চ্যানেল: youtube.com/@khanacademy (পাতা কাজ করে এক্সটেনশন থাকা ব্রাউজারে; পুরো সাইট সবখানে)",
+        "অ্যাপ: minecraft.exe",
+        "প্রতি লাইনে একটা। http://, www. আর শেষের / নিজে থেকে বাদ যায়।"],
+      note: "ব্যতিক্রম যোগ করলে লিস্ট দুর্বল হয়, তাই সুরক্ষা চালু থাকলে শুধু সরানো যায়, যোগ করা যায় না। সত্যিই দরকার হলে আগে সুরক্ষা কমান।",
     },
     hidden_list: {
       t: "লিস্টটা কেন লুকানো",

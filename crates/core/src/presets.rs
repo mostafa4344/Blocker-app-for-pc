@@ -325,6 +325,8 @@ impl Preset {
             sites: own(self.sites),
             apps: own(self.apps),
             keywords: own(self.keywords),
+            allow_sites: Vec::new(),
+            allow_apps: Vec::new(),
             allowlist_mode: false,
             // Content nobody needs "sometimes" is blocked around the clock.
             always_on: self.always_on_by_default(),
@@ -409,6 +411,8 @@ impl PresetDef {
             sites: self.sites.clone(),
             apps: self.apps.clone(),
             keywords: self.keywords.clone(),
+            allow_sites: Vec::new(),
+            allow_apps: Vec::new(),
             allowlist_mode: false,
             always_on: self.always_on,
             preset: self.id.clone(),
