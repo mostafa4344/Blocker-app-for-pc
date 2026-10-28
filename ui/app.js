@@ -198,8 +198,24 @@ function userIsEditing() {
   return modalOpen() || (a && ["INPUT", "TEXTAREA", "SELECT"].includes(a.tagName));
 }
 
+/** The window keeps running the page it loaded; after the agent updated
+ * itself (automatically or from another window) load the new version's page,
+ * staying on the same tab. Waits while the user is typing in a form. */
+function reloadIfAgentUpdated() {
+  if (!S.status || S.onboarding) return false;
+  S.loadedVersion ??= S.status.version;
+  if (S.status.version === S.loadedVersion || userIsEditing()) return false;
+  try {
+    sessionStorage.setItem("cg-updated-to", S.status.version);
+    sessionStorage.setItem("cg-page", S.page);
+  } catch {}
+  location.reload();
+  return true;
+}
+
 async function poll() {
   await refresh();
+  if (reloadIfAgentUpdated()) return;
   followUpdate();
   if (S.updating) return render();
   // Only the home page refreshes itself; forms elsewhere must not be wiped while typing.
@@ -207,6 +223,15 @@ async function poll() {
 }
 
 await refresh();
+S.loadedVersion = S.status?.version;
+try {
+  const updated = sessionStorage.getItem("cg-updated-to");
+  const page = sessionStorage.getItem("cg-page");
+  sessionStorage.removeItem("cg-updated-to");
+  sessionStorage.removeItem("cg-page");
+  if (page) S.page = page;
+  if (updated) setTimeout(() => toast(t("update_done", { v: updated })), 300);
+} catch {}
 render();
 setInterval(poll, 4000);
 setInterval(updateCountdowns, 1000);
