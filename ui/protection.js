@@ -46,7 +46,9 @@ function requestRow(r) {
 
 export function renderProtection(main) {
   const p = cfg().protection;
-  const reqs = S.status.requests.slice().reverse();
+  // Only requests still in progress; cancelled, expired, denied and used ones are history.
+  const ACTIVE = ["needs_challenge", "pending", "approved"];
+  const reqs = S.status.requests.filter((r) => ACTIVE.includes(r.status)).reverse();
   // Make sure the current cooldown is selectable even if it is a custom value.
   const opts = DELAY_OPTIONS.includes(p.cooldown_hours) ? DELAY_OPTIONS : [p.cooldown_hours, ...DELAY_OPTIONS];
   main.innerHTML = `
