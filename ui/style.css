@@ -179,3 +179,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .tip-pop li{margin:4px 0}
 .tip-pop .tip-note{background:var(--primary-soft);border-radius:10px;padding:8px 10px}
 .tip-pop .tip-foot{gap:8px;border-top:1px solid var(--border);padding-top:10px;margin-top:4px}
+
+/* Home: what is blocked (left) and unlock requests in progress (right) */
+.hero-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 22px; align-items: start; }
+.hero-split .unlock-col { border-inline-start: 1px solid var(--border); padding-inline-start: 22px; }
+.hero-split .unlock-col h2 { margin: 0; font-size: 1.05rem; }
+@media (max-width: 760px) {
+  .hero-split { grid-template-columns: minmax(0, 1fr); }
+  .hero-split .unlock-col { border-inline-start: 0; padding-inline-start: 0; border-top: 1px solid var(--border); padding-top: 16px; }
+}

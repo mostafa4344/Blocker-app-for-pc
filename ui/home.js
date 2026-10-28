@@ -27,6 +27,20 @@ function activeLine(a) {
   }<span class="muted">${until}</span></div>`;
 }
 
+/** Requests still in progress (to unlock, lower protection or uninstall). */
+const ACTIVE_REQUESTS = ["needs_challenge", "pending", "approved"];
+
+function unlockRequestLine(r) {
+  const badge = r.status === "approved" ? "ok" : "";
+  let when = "";
+  if (r.status === "pending" && r.available_at) when = `${t("available_at")}: ${fmtTime(r.available_at)}`;
+  return `<div class="item">
+      <div><div class="row"><strong>${t(`kind_${r.kind.type}`)}</strong><span class="badge ${badge}">${t(`st_${r.status}`)}</span></div>
+        ${when ? `<div class="meta">${esc(when)}</div>` : ""}</div>
+      <button class="btn small" data-cancel-request="${esc(r.id)}">${t("cancel")}</button>
+    </div>`;
+}
+
 function lockBody(kind) {
   switch (kind) {
     case "random_text": return { type: "random_text", length: 200 };
@@ -101,6 +115,7 @@ export function renderHome(main) {
   }
   const allPicked = lists.length > 0 && lists.every((l) => S.quick.listIds.includes(l.id));
   const active = s.policy.active;
+  const unlock = s.requests.filter((r) => ACTIVE_REQUESTS.includes(r.status)).reverse();
   const durations = [25, 60, 120, 240];
   const lockOptions = [["none", "lock_none"], ["timer", "lock_timer"], ["random_text", "lock_random_text"], ["restart", "lock_restart"]];
   if (cfg().protection.partner) lockOptions.push(["partner", "lock_partner"]);
@@ -148,9 +163,18 @@ export function renderHome(main) {
 
   main.innerHTML = `
     <div class="stack">
-      <div class="card hero ${active.length ? "active" : ""}">
-        <span class="dot" aria-hidden="true"></span>
-        <div class="stack"><h2>${active.length ? t("blocking_now") : t("nothing_blocked")} ${tip("home_status")}</h2>${active.map(activeLine).join("")}</div>
+      <div class="card hero-split">
+        <div class="hero ${active.length ? "active" : ""}">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="stack"><h2>${active.length ? t("blocking_now") : t("nothing_blocked")} ${tip("home_status")}</h2>${active.map(activeLine).join("")}</div>
+        </div>
+        <div class="stack unlock-col">
+          <div class="row between"><h2>${t("unlock_requests")} ${tip("requests")}</h2>
+            <button class="btn small" data-goto="protection">${t("see_details")}</button></div>
+          ${unlock.length
+            ? `<div class="list">${unlock.map(unlockRequestLine).join("")}</div>`
+            : `<p class="muted">${t("no_unlock_requests")}</p>`}
+        </div>
       </div>
       ${banners()}
       <div class="grid two">
@@ -168,6 +192,9 @@ export function renderHome(main) {
 
   $$(".bar .fill", main).forEach((el) => (el.style.height = `${Math.max(2, Number(el.dataset.h))}%`));
   $("#end-practice", main)?.addEventListener("click", () => act(() => api("POST", "/api/practice/end")));
+  // Cancelling an unlock request only keeps things locked, so no confirmation is needed.
+  $$("[data-cancel-request]", main).forEach((b) => b.addEventListener("click", () =>
+    act(() => api("POST", `/api/requests/${b.dataset.cancelRequest}/cancel`), t("request_cancelled"))));
   $$("[data-goto]", main).forEach((b) => b.addEventListener("click", () => { S.page = b.dataset.goto; S.render(); }));
   $$("[data-pick]", main).forEach((b) => b.addEventListener("click", () => {
     const id = b.dataset.pick;
