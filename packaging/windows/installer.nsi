@@ -19,7 +19,7 @@
 !define APPNAME     "HTL Content Guard PC"
 !define SERVICE     "ContentGuard"
 !define URL         "http://127.0.0.1:17345/"
-!define VERSION     "1.4.0"
+!define VERSION     "1.4.1"
 !define REGKEY      "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SERVICE}"
 
 Name "${APPNAME}"

@@ -208,10 +208,18 @@ export const HELP = {
       t: "My goal",
       p: ["A short sentence about why you are doing this, for example \"Finish my exam syllabus this month\". It appears on the block page every time something is blocked, so you are reminded of what matters at the exact moment you need it."],
     },
-    guard_browsers: {
+    unsupported_browsers: {
       t: "Close browsers that can't be filtered",
-      p: ["Blocking parts of sites and words happens inside the browser through the extension. Without this switch, someone could get around blocking by removing the extension or using another browser.",
-        "When it is on, while anything is being blocked, any browser that isn't filtered is closed after a 90-second warning. That includes a browser without a working extension, or one that can't be filtered at all (like Tor). It also installs the extension automatically in every supported browser."],
+      p: ["Some browsers can't be filtered at all. Tor Browser, for example, looks up websites through its own network, so blocked sites would open in it. While anything is being blocked, these browsers are closed a few seconds after they start.",
+        "This doesn't affect normal browsers like Chrome, Edge, Firefox, Brave or Opera. It is on by default and recommended for everyone."],
+      note: "Can't be switched off while protection is on. See \"Which browsers are supported\" for the full list.",
+    },
+    guard_browsers: {
+      t: "Close browsers where the extension isn't working",
+      p: ["Blocking parts of sites (Shorts, Reels) and words happens inside the browser through the extension. Without this switch, someone could get around that by removing the extension or switching to a browser that doesn't have it.",
+        "When it is on, while anything is being blocked, a supported browser whose extension isn't installed or isn't working is closed after a 90-second warning. It also installs the extension automatically in every browser where that's possible."],
+      how: ["First turn on \"Install the extension permanently\" and check \"Browsers running now\": every browser you use should show Protected.",
+        "Then turn this on. A browser that still shows \"Not filtered – will be closed\" will be closed while blocking."],
       note: "Can't be switched off while protection is on.",
     },
     running_browsers: {
@@ -462,10 +470,18 @@ export const HELP = {
       t: "আমার লক্ষ্য",
       p: ["কেন এটা করছেন তা নিয়ে একটা ছোট বাক্য, যেমন \"এই মাসে পরীক্ষার পুরো সিলেবাস শেষ করব\"। যখনই কিছু ব্লক হয়, ব্লক পাতায় এটা দেখায়, ঠিক যখন মনে করিয়ে দেওয়া সবচেয়ে দরকার।"],
     },
+    unsupported_browsers: {
+      t: "যে ব্রাউজার ফিল্টার করা যায় না তা বন্ধ করা",
+      p: ["কিছু ব্রাউজার একেবারেই ফিল্টার করা যায় না। যেমন Tor Browser নিজের নেটওয়ার্ক দিয়ে ওয়েবসাইট খোঁজে, তাই ব্লক করা সাইট সেখানে খুলে যেত। কিছু ব্লক থাকা অবস্থায় এই ব্রাউজারগুলো চালু হওয়ার কয়েক সেকেন্ডের মধ্যে বন্ধ হয়ে যায়।",
+        "Chrome, Edge, Firefox, Brave বা Opera-র মতো সাধারণ ব্রাউজারে এর কোনো প্রভাব নেই। এটা ডিফল্টে চালু থাকে, আর সবার জন্যই সুপারিশ করা হয়।"],
+      note: "সুরক্ষা চালু থাকলে বন্ধ করা যায় না। পুরো তালিকা \"কোন ব্রাউজার সমর্থিত\"-এ দেখুন।",
+    },
     guard_browsers: {
-      t: "যে ব্রাউজার ফিল্টার হয় না তা বন্ধ করা",
-      p: ["সাইটের অংশ আর শব্দ ব্লক হয় ব্রাউজারের ভেতরে, এক্সটেনশন দিয়ে। এই সুইচ ছাড়া কেউ এক্সটেনশন সরিয়ে বা অন্য ব্রাউজার ব্যবহার করে ব্লক এড়াতে পারত।",
-        "চালু থাকলে কিছু ব্লক থাকা অবস্থায় যে ব্রাউজার ফিল্টার হচ্ছে না, তা ৯০ সেকেন্ডের সতর্কতার পর বন্ধ হয়। এর মধ্যে আছে চালু এক্সটেনশন ছাড়া ব্রাউজার, আর যেটা একেবারেই ফিল্টার করা যায় না (যেমন Tor)। এটা সব সমর্থিত ব্রাউজারে এক্সটেনশনও নিজে থেকে বসিয়ে দেয়।"],
+      t: "যে ব্রাউজারে এক্সটেনশন কাজ করছে না তা বন্ধ করা",
+      p: ["সাইটের অংশ (Shorts, Reels) আর শব্দ ব্লক হয় ব্রাউজারের ভেতরে, এক্সটেনশন দিয়ে। এই সুইচ ছাড়া কেউ এক্সটেনশন সরিয়ে বা এক্সটেনশন ছাড়া অন্য ব্রাউজারে গিয়ে এটা এড়াতে পারত।",
+        "চালু থাকলে কিছু ব্লক থাকা অবস্থায় যে সমর্থিত ব্রাউজারে এক্সটেনশন বসেনি বা কাজ করছে না, তা ৯০ সেকেন্ডের সতর্কতার পর বন্ধ হয়। যেখানে সম্ভব সেখানে এটা এক্সটেনশন নিজে থেকে বসিয়েও দেয়।"],
+      how: ["আগে \"এক্সটেনশন স্থায়ীভাবে বসানো\" চালু করে \"এখন চলা ব্রাউজার\" দেখুন: যে ব্রাউজার ব্যবহার করেন সবগুলোতে \"সুরক্ষিত\" দেখাতে হবে।",
+        "তারপর এটা চালু করুন। যে ব্রাউজারে তখনো \"ফিল্টার হচ্ছে না – বন্ধ হবে\" দেখায়, ব্লকের সময় সেটা বন্ধ হবে।"],
       note: "সুরক্ষা চালু থাকলে বন্ধ করা যায় না।",
     },
     running_browsers: {

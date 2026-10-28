@@ -12,7 +12,8 @@ use crate::app::App;
 use crate::hosts;
 use crate::paths;
 use crate::processes::{
-    browser_brand, browser_family, browser_support, report_covers, BrowserSupport, Watcher,
+    browser_brand, browser_family, browser_support, report_covers, BrowserFamily, BrowserSupport,
+    Watcher,
 };
 
 /// Blocked host names, plus SafeSearch `(ip, host)` redirects, last written.
@@ -136,21 +137,35 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         let blocking = !policy.is_empty();
         let mut blocked_hits: Vec<String> = Vec::new();
         // A supported browser whose extension isn't reporting in (not installed,
-        // disabled, or filtering not working) counts as unsupported: with
-        // "block unsupported browsers" (or the older "require extension") on,
-        // it is closed while blocking, like any browser we cannot filter.
-        let guard_browsers =
-            config.settings.block_unsupported_browsers || config.settings.require_browser_extension;
+        // disabled, or filtering not working) is closed while blocking when
+        // "require extension" is on. This is separate from closing browsers that
+        // can't be filtered at all (Tor...), which is safe to enable for everyone:
+        // the extension can't be force-installed in every browser yet (Edge on
+        // home PCs only takes Edge Add-ons extensions, Firefox needs AMO).
+        let guard_browsers = config.settings.require_browser_extension;
         let mut report: Vec<(&'static str, bool, bool)> = Vec::new();
+        // Distinct browser brands running per engine family, to know whether an
+        // old family-only extension report can be attributed to one browser.
+        let mut brands_running: Vec<(BrowserFamily, &'static str)> = Vec::new();
+        for p in &procs {
+            if let (Some((brand, _)), Some(family)) =
+                (browser_brand(&p.name), browser_family(&p.name))
+            {
+                if !brands_running.contains(&(family, brand)) {
+                    brands_running.push((family, brand));
+                }
+            }
+        }
         for p in &procs {
             let close_for_block = policy.app_blocked(&p.name);
             let mut close_for_missing_extension = false;
             if let (Some((brand, display)), Some(family)) =
                 (browser_brand(&p.name), browser_family(&p.name))
             {
-                let protected = ext_seen
-                    .iter()
-                    .any(|(k, ago)| *ago < EXTENSION_GRACE_SECS && report_covers(k, brand, family));
+                let sole = brands_running.iter().filter(|(f, _)| *f == family).count() <= 1;
+                let protected = ext_seen.iter().any(|(k, ago)| {
+                    *ago < EXTENSION_GRACE_SECS && report_covers(k, brand, family, sole)
+                });
                 let running_for = now_epoch.saturating_sub(p.start_time);
                 close_for_missing_extension =
                     guard_browsers && blocking && !protected && running_for > EXTENSION_GRACE_SECS;

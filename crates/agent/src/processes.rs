@@ -183,10 +183,17 @@ pub const REPORT_KEYS: &[&str] = &[
 ];
 
 /// Whether an extension report under `seen_key` covers a browser process.
-/// Older extension versions only report the engine family ("chromium"), which
-/// still covers every Chromium browser until they update.
-pub fn report_covers(seen_key: &str, brand: &str, family: BrowserFamily) -> bool {
-    seen_key == brand || seen_key == family.key()
+/// Older extension versions only report the engine family ("chromium"). Such
+/// a report can't say which browser sent it, so it only counts when this is
+/// the only browser brand of that family running: otherwise an extension in
+/// Chrome would make Edge (with no extension) look protected.
+pub fn report_covers(
+    seen_key: &str,
+    brand: &str,
+    family: BrowserFamily,
+    sole_brand_of_family: bool,
+) -> bool {
+    seen_key == brand || (seen_key == family.key() && sole_brand_of_family)
 }
 
 pub fn browser_support(name: &str) -> BrowserSupport {
@@ -272,14 +279,38 @@ mod tests {
         let (edge, _) = browser_brand("msedge.exe").unwrap();
         assert_eq!((chrome, edge), ("chrome", "edge"));
         // An extension in Chrome does not cover Edge...
-        assert!(report_covers("chrome", chrome, BrowserFamily::Chromium));
-        assert!(!report_covers("chrome", edge, BrowserFamily::Chromium));
-        // ...but an old family-only report still covers both.
-        assert!(report_covers("chromium", edge, BrowserFamily::Chromium));
+        assert!(report_covers(
+            "chrome",
+            chrome,
+            BrowserFamily::Chromium,
+            false
+        ));
+        assert!(!report_covers(
+            "chrome",
+            edge,
+            BrowserFamily::Chromium,
+            true
+        ));
+        // ...an old family-only report covers a browser only when it is the
+        // only Chromium browser running (otherwise we can't tell who sent it)...
+        assert!(report_covers(
+            "chromium",
+            edge,
+            BrowserFamily::Chromium,
+            true
+        ));
+        assert!(!report_covers(
+            "chromium",
+            edge,
+            BrowserFamily::Chromium,
+            false
+        ));
+        // ...and never another family.
         assert!(!report_covers(
             "chromium",
             "firefox",
-            BrowserFamily::Firefox
+            BrowserFamily::Firefox,
+            true
         ));
         assert_eq!(browser_brand("librewolf").unwrap().0, "firefox");
         assert!(browser_brand("notepad.exe").is_none());

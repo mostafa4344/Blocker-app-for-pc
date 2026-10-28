@@ -245,7 +245,7 @@ export default {
   pick_at_least_one: "Pilih minimal satu daftar.",
   focus_started: "Fokus dimulai — {n} daftar diblokir.",
   guard_browsers: "Saat memblokir, tutup browser yang filternya tidak berjalan",
-  guard_browsers_help: "Browser yang ekstensinya belum terpasang atau tidak berjalan, atau yang sama sekali tidak bisa difilter (seperti Tor), dianggap tidak didukung dan ditutup setelah 90 detik. Mengaktifkan ini juga memasang ekstensi otomatis di semua browser yang didukung.",
+  guard_browsers_help: "Browser yang didukung (Chrome, Edge, Brave, Firefox…) yang ekstensinya belum terpasang atau tidak berfungsi akan ditutup setelah 90 detik selama pemblokiran. Mengaktifkan ini juga memasang ekstensi secara otomatis. Browser yang tidak bisa dipasangi ekstensi juga akan ditutup.",
   running_browsers: "Browser yang sedang berjalan",
   no_browser_running: "Tidak ada browser yang berjalan saat ini.",
   br_protected: "Terlindungi",

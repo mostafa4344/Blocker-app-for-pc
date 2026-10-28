@@ -235,7 +235,6 @@ function prettyBrowsers(names) {
 export function renderSettings(main) {
   const st = cfg().settings;
   const browsers = S.status.browsers;
-  const guarding = st.block_unsupported_browsers || st.require_browser_extension;
   const running = browsers.running || [];
   main.innerHTML = `
     <div class="page-head"><h1>${t("settings_title")}</h1></div>
@@ -247,7 +246,8 @@ export function renderSettings(main) {
 
       <section class="card stack">
         <h2>${t("browsers_title")}</h2>
-        <label class="check"><input type="checkbox" id="s-unsup" ${guarding ? "checked" : ""}><span>${t("guard_browsers")} ${tip("guard_browsers")}<br><span class="hint">${t("guard_browsers_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-unsup" ${st.block_unsupported_browsers ? "checked" : ""}><span>${t("block_unsupported")} ${tip("unsupported_browsers")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-reqext" ${st.require_browser_extension ? "checked" : ""}><span>${t("guard_browsers")} ${tip("guard_browsers")}<br><span class="hint">${t("guard_browsers_help")}</span></span></label>
         <div class="stack"><strong>${t("running_browsers")} ${tip("running_browsers")}</strong>
           ${running.length === 0 ? `<p class="muted">${t("no_browser_running")}</p>` : `<div class="list">${running.map((b) => `
             <div class="row between"><span>${esc(b.name)}</span><span class="badge ${b.protected ? "ok" : b.closes ? "danger" : "warn"}">${t(b.protected ? "br_protected" : b.closes ? "br_closes" : "br_unprotected")}</span></div>`).join("")}</div>`}
@@ -294,10 +294,11 @@ export function renderSettings(main) {
   $("#s-save", main).addEventListener("click", () => saveConfig((c) => {
     c.settings.language = $("#s-lang", main).value;
     c.settings.goal = $("#s-goal", main).value.trim();
-    // One switch now covers both: unsupported browsers and supported ones
-    // whose extension isn't working are closed while blocking.
-    const guard = $("#s-unsup", main).checked;
-    c.settings.block_unsupported_browsers = guard;
+    // Two separate switches: closing browsers that can't be filtered at all
+    // (Tor…) is safe for everyone; closing supported browsers whose extension
+    // isn't working also hits browsers the extension can't be installed in yet.
+    c.settings.block_unsupported_browsers = $("#s-unsup", main).checked;
+    const guard = $("#s-reqext", main).checked;
     c.settings.require_browser_extension = guard;
     c.settings.force_safe_search = $("#s-safe", main).checked;
     // Guarding browsers needs the extension in them: install it automatically.

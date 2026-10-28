@@ -168,6 +168,12 @@ async function finishOnboarding() {
     const c1 = clone(cfg());
     c1.settings.language = ob.language;
     c1.settings.goal = ob.goal;
+    // Safe defaults that close the two easiest ways around blocking without
+    // getting in anyone's way: browsers that can't be filtered at all (Tor
+    // ignores the hosts file) are closed while blocking, and search engines
+    // stay in SafeSearch (otherwise image search shows what the lists block).
+    c1.settings.block_unsupported_browsers = true;
+    c1.settings.force_safe_search = true;
     await api("PUT", "/api/config", c1);
     for (const id of ob.presets) await addPreset(id);
     await refresh();

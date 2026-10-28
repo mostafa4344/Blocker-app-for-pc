@@ -245,7 +245,7 @@ export default {
   pick_at_least_one: "En az bir liste seçin.",
   focus_started: "Odak başladı — {n} liste engelleniyor.",
   guard_browsers: "Engelleme sırasında filtrelemenin çalışmadığı tarayıcıları kapat",
-  guard_browsers_help: "Uzantısı yüklü olmayan veya çalışmayan, ya da hiç filtrelenemeyen (Tor gibi) tarayıcılar desteklenmiyor sayılır ve 90 saniye sonra kapatılır. Bunu açmak uzantıyı desteklenen tüm tarayıcılara otomatik olarak da yükler.",
+  guard_browsers_help: "Uzantısı kurulu olmayan veya çalışmayan desteklenen bir tarayıcı (Chrome, Edge, Brave, Firefox…) engelleme sırasında 90 saniye sonra kapatılır. Bunu açmak uzantıyı da otomatik olarak kurar. Uzantının kurulamadığı bir tarayıcı da kapatılır.",
   running_browsers: "Şu an çalışan tarayıcılar",
   no_browser_running: "Şu anda çalışan tarayıcı yok.",
   br_protected: "Korunuyor",
