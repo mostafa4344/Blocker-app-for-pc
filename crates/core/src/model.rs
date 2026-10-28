@@ -257,6 +257,8 @@ pub struct State {
     pub challenge: Option<crate::challenge::Challenge>,
     /// Highest trusted time seen; used to detect the clock being set back.
     pub trusted_now: Option<DateTime<Utc>>,
+    /// Time zone used for schedules and daily limits (see `clock::TimeZoneState`).
+    pub time_zone: crate::clock::TimeZoneState,
     /// Daily totals per block list for the dashboard (`day` -> list id -> seconds).
     pub stats: Vec<DailyStat>,
 }

@@ -270,6 +270,7 @@ export default {
   plan_monthly: "Aylık",
   plan_yearly: "Yıllık",
   plan_lifetime: "Ömür boyu",
+  plan_n_months: "{n} ay",
   popular: "Popüler",
   send_money_to: "{method} uygulamasından bu numaraya {price} \"Send Money\" yapın:",
   send_money_hint: "Ödemeden sonra mesajda bir TrxID (işlem numarası) alırsınız — aşağıya yazın.",

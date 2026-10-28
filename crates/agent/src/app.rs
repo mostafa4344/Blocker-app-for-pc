@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::{Mutex, MutexGuard};
-use std::time::Instant;
+use std::time::{Duration as StdDuration, Instant};
 
 use chrono::{DateTime, Duration, Local, TimeZone, Utc};
 use serde_json::{json, Value};
@@ -39,6 +39,8 @@ pub struct Inner {
     pub license: License,
     pub clock: TrustedClock,
     last_tick: Instant,
+    /// Last successful time check against the server.
+    pub last_time_sync: Option<Instant>,
     /// Browser family -> last time its extension reported in.
     pub extension_seen: HashMap<String, Instant>,
     pub hosts_status: Result<(), String>,
@@ -113,10 +115,12 @@ fn store_has(store: &Store, file: &str) -> bool {
     store.path(file).exists()
 }
 
-pub fn local_now(utc: DateTime<Utc>) -> Now {
+/// Wall-clock time for schedules and daily limits, in the pinned time zone
+/// (`offset_secs` east of UTC; see `clock::TimeZoneState`).
+pub fn local_at(utc: DateTime<Utc>, offset_secs: i32) -> Now {
     Now {
         utc,
-        local: Local.from_utc_datetime(&utc.naive_utc()).naive_local(),
+        local: (utc + Duration::seconds(offset_secs as i64)).naive_utc(),
     }
 }
 
@@ -167,6 +171,7 @@ impl App {
                 update_phase: "",
                 clock,
                 last_tick: Instant::now(),
+                last_time_sync: None,
                 extension_seen: HashMap::new(),
                 hosts_status: Ok(()),
                 state_dirty: false,
@@ -231,7 +236,19 @@ impl App {
         let elapsed = inner.last_tick.elapsed();
         inner.last_tick = Instant::now();
         let utc = inner.clock.tick(Utc::now(), elapsed);
-        let now = local_now(utc);
+        // Schedules use the pinned time zone: changing Windows' zone only
+        // counts after a day while protected.
+        let system_offset = Local
+            .offset_from_utc_datetime(&utc.naive_utc())
+            .local_minus_utc();
+        let protected = lock::guarded(&inner.config)
+            || !lock::locked_list_ids(&inner.config, &inner.state, utc).is_empty();
+        let tz_before = inner.state.time_zone;
+        let offset = inner.state.time_zone.resolve(system_offset, utc, protected);
+        if inner.state.time_zone != tz_before {
+            inner.state_dirty = true;
+        }
+        let now = local_at(utc, offset);
         for r in inner.state.requests.iter_mut() {
             let before = r.status;
             r.tick(utc);
@@ -300,6 +317,8 @@ impl App {
             "version": VERSION,
             "now": now.utc,
             "clock_skew_seconds": inner.clock.skew().num_seconds(),
+            "clock_verified": inner.clock.verified(),
+            "time_zone_pending": inner.state.time_zone.pending.is_some(),
             "config": inner.config,
             "policy": policy,
             "sessions": sessions,
@@ -806,6 +825,39 @@ impl App {
 
     /// Contacts the backend to register (first run) and refresh license status.
     /// Called from the background loop; errors are cached, not surfaced.
+    /// Checks the time with the server and corrects the trusted clock.
+    pub fn sync_time(&self) -> bool {
+        let ep = {
+            let g = self.lock();
+            self.license_endpoint(&g)
+        };
+        match license::server_time(&ep) {
+            Ok(t) => {
+                let mut g = self.lock();
+                let inner = &mut *g;
+                // Bring the clock up to the moment of the answer first.
+                self.advance(inner);
+                inner.clock.sync_server(t);
+                inner.last_time_sync = Some(Instant::now());
+                inner.state_dirty = true;
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// True when the time should be checked with the server: not yet since the
+    /// agent started, or the computer's clock now disagrees with the trusted
+    /// time (it was changed, or the PC slept) and the last check is a while ago.
+    pub fn time_needs_sync(&self) -> bool {
+        let g = self.lock();
+        let ago = g.last_time_sync.map(|t| t.elapsed());
+        !g.clock.verified()
+            || (g.clock.skew().num_seconds().abs() > 120
+                && ago.is_none_or(|a| a > StdDuration::from_secs(600)))
+            || ago.is_none_or(|a| a > StdDuration::from_secs(6 * 3600))
+    }
+
     pub fn sync_license(&self) {
         let (ep, mut lic, first) = {
             let g = self.lock();
@@ -1068,7 +1120,12 @@ impl App {
         contact: &str,
     ) -> ApiResult {
         let txn: String = txn_id.trim().to_ascii_uppercase();
-        if !matches!(plan, "monthly" | "yearly" | "lifetime")
+        // Plans come from the server's "plans" table: the classic codes, or
+        // "<months>m" (e.g. "2m"). The server checks the plan really exists.
+        let months_code = plan.strip_suffix('m').is_some_and(|n| {
+            !n.is_empty() && n.len() <= 3 && n.bytes().all(|b| b.is_ascii_digit())
+        });
+        if !(matches!(plan, "monthly" | "yearly" | "lifetime") || months_code)
             || !matches!(method, "bkash" | "nagad" | "rocket" | "upay")
         {
             return Err(ApiError::bad_request("plan/method"));

@@ -117,6 +117,8 @@ export function createApp({ store, apiKey = null, clock = Date.now, log = () => 
     for (let i = 0; i < txt.length; i++) h = (h * 31 + txt.charCodeAt(i)) | 0;
     return `${(h >>> 0).toString(16)}-${Object.keys(store.data.presets ?? {}).length}`;
   };
+  // Plan codes as in SQL plan_code(): monthly / yearly / lifetime, else "<n>m".
+  const planCode = (m) => (m == null ? "lifetime" : m === 1 ? "monthly" : m === 12 ? "yearly" : `${m}m`);
   // Like the SQL submit_purchase_request(): a pending request the admin approves.
   const submitPurchase = (b) => {
     if (!store.account(String(b.p_install_id || ""))) throw Object.assign(new Error("not registered"), { status: 404 });
@@ -149,8 +151,13 @@ export function createApp({ store, apiKey = null, clock = Date.now, log = () => 
         out.accepts_health = true;
         out.purchase_url = store.data.config?.purchase_url || null;
         const c = store.data.config ?? {};
+        // Like the SQL "plans" table (months null = lifetime) plus the old fixed keys.
+        const plans = (store.data.plans ?? [
+          { months: 1, price: "৳199" }, { months: 2, price: "৳400" }, { months: 12, price: "৳1200", popular: true },
+        ]).filter((p) => p.enabled !== false).map((p) => ({ code: planCode(p.months), months: p.months ?? null, price: p.price, name: p.name || "", popular: !!p.popular }));
+        const priceOf = (m) => plans.find((p) => p.months === m)?.price ?? null;
         out.pay = { bkash: c.bkash_number ?? "01568689505", nagad: c.nagad_number ?? "01568689505", rocket: c.rocket_number ?? null,
-                    monthly: c.price_monthly ?? "৳199", yearly: c.price_yearly ?? "৳999", lifetime: c.price_lifetime ?? "৳1999" };
+                    monthly: priceOf(1), yearly: priceOf(12), lifetime: priceOf(null), plans };
       }
       log(`[rpc] ${m[1]} ${body.p_install_id?.slice(0, 8) ?? ""} -> ${out?.plan ?? (Array.isArray(out) ? `${out.length} items` : "")}`);
       return json(res, 200, out);

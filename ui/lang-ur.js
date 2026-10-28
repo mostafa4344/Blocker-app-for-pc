@@ -270,6 +270,7 @@ export default {
   plan_monthly: "ماہانہ",
   plan_yearly: "سالانہ",
   plan_lifetime: "تاحیات",
+  plan_n_months: "{n} ماہ",
   popular: "مقبول",
   send_money_to: "{method} ایپ سے اس نمبر پر {price} \"Send Money\" کریں:",
   send_money_hint: "ادائیگی کے بعد پیغام میں TrxID (ٹرانزیکشن نمبر) ملے گا — اسے نیچے لکھیں۔",

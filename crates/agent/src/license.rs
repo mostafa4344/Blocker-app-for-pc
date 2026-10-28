@@ -243,6 +243,28 @@ fn call(ep: &Endpoint, func: &str, body: serde_json::Value) -> Result<ServerLice
         .map_err(|e| e.to_string())
 }
 
+/// The real time, from the `Date` header of the licensing server's HTTPS
+/// answer (TLS means it can't be faked by changing anything on this PC).
+/// Corrected for half the round trip.
+pub fn server_time(ep: &Endpoint) -> Result<DateTime<Utc>, String> {
+    let started = std::time::Instant::now();
+    let resp = agent()
+        .get(&format!("{}/rest/v1/", ep.base))
+        .header("apikey", &ep.key)
+        .call()
+        .map_err(|e| e.to_string())?;
+    let rtt = started.elapsed();
+    let date = resp
+        .headers()
+        .get("date")
+        .and_then(|v| v.to_str().ok())
+        .ok_or("no Date header")?;
+    let t = DateTime::parse_from_rfc2822(date.trim())
+        .map_err(|e| e.to_string())?
+        .with_timezone(&Utc);
+    Ok(t + chrono::Duration::from_std(rtt / 2).unwrap_or_default())
+}
+
 fn apply(lic: &mut License, s: ServerLicense, now: DateTime<Utc>) {
     if let Some(p) = s.plan {
         lic.plan = p;

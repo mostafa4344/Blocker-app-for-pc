@@ -88,6 +88,11 @@ fn list_is_stricter(new: &BlockList, old: &BlockList) -> bool {
     if new.allowlist_mode != old.allowlist_mode || (old.always_on && !new.always_on) {
         return false;
     }
+    // A ready-made list keeps its tag: without it the list would silently stop
+    // receiving the new sites we add to it from the server.
+    if !old.preset.is_empty() && new.preset != old.preset {
+        return false;
+    }
     let sites_ok = if old.allowlist_mode {
         superset(&old.sites, &new.sites)
     } else {
@@ -199,6 +204,23 @@ pub fn validate_update(
             if turned_off(o, n) {
                 return Err(PolicyError::EnforcementLocked { what: what.into() });
             }
+        }
+        // Partial blocking (hide Shorts, Reels, feeds...): filters can be added,
+        // never removed, or unticking "Hide YouTube Shorts" would undo it.
+        if let Some(f) = s_old
+            .distraction_filters
+            .iter()
+            .find(|f| !s_new.distraction_filters.contains(f))
+        {
+            return Err(PolicyError::EnforcementLocked {
+                what: format!("distraction_filters:{f}"),
+            });
+        }
+        // The DNS filter can be switched on (or to another provider), not off.
+        if s_old.dns_filter != "off" && s_new.dns_filter == "off" {
+            return Err(PolicyError::EnforcementLocked {
+                what: "dns_filter".into(),
+            });
         }
     }
     validate_shape(new)
@@ -466,6 +488,28 @@ mod tests {
         on.settings.require_browser_extension = true;
         assert!(validate_update(&old, &on, &State::default(), now).is_ok());
 
+        // Partial-blocking filters can be added but not removed.
+        let mut filters = old.clone();
+        filters.settings.distraction_filters = vec!["youtube_shorts".into()];
+        let mut more = filters.clone();
+        more.settings
+            .distraction_filters
+            .push("facebook_reels".into());
+        assert!(validate_update(&filters, &more, &State::default(), now).is_ok());
+        let mut fewer = filters.clone();
+        fewer.settings.distraction_filters.clear();
+        assert!(matches!(
+            validate_update(&filters, &fewer, &State::default(), now),
+            Err(PolicyError::EnforcementLocked { .. })
+        ));
+        // The DNS filter can't be switched back off.
+        let mut dns = old.clone();
+        dns.settings.dns_filter = "family".into();
+        let mut dns_off = dns.clone();
+        dns_off.settings.dns_filter = "off".into();
+        assert!(validate_update(&dns, &dns_off, &State::default(), now).is_err());
+        assert!(validate_update(&old, &dns, &State::default(), now).is_ok());
+
         // With nothing locked and protection Off, switches are free to toggle.
         let mut unprotected = old.clone();
         unprotected.schedules[0].locked = false;
@@ -537,6 +581,12 @@ mod tests {
         let mut sched_off = old.clone();
         sched_off.schedules[0].enabled = false;
         assert!(validate_update(&old, &sched_off, &st, now).is_err());
+        // A ready-made list can't lose its tag (it would stop getting updates).
+        let mut tagged = old.clone();
+        tagged.block_lists[0].preset = "adult".into();
+        let mut untagged = tagged.clone();
+        untagged.block_lists[0].preset = String::new();
+        assert!(validate_update(&tagged, &untagged, &st, now).is_err());
         // Tightening is still fine.
         let mut more = old.clone();
         more.block_lists[0].sites.push("worse.com".into());

@@ -124,9 +124,33 @@ export function activateModal() {
   );
 }
 
-const PLANS = ["monthly", "yearly", "lifetime"];
 const METHODS = [["bkash", "bKash"], ["nagad", "Nagad"], ["rocket", "Rocket"]];
-const buy = { plan: "yearly", method: "" };
+const buy = { plan: "", method: "" };
+
+/** Plans from the server's "plans" table; older servers only send fixed keys. */
+function planList(pay) {
+  if (Array.isArray(pay?.plans)) return pay.plans.filter((p) => p && p.code && p.price);
+  return [["monthly", 1], ["yearly", 12], ["lifetime", null]]
+    .filter(([k]) => pay?.[k])
+    .map(([code, months]) => ({ code, months, price: pay[code], name: "", popular: code === "yearly" }));
+}
+
+/** A plan's label: its own name, else Monthly / Yearly / Lifetime / "N months". */
+function planLabel(plan) {
+  if (plan.name) return plan.name;
+  if (plan.months == null) return t("plan_lifetime");
+  if (plan.months === 1) return t("plan_monthly");
+  if (plan.months === 12) return t("plan_yearly");
+  return t("plan_n_months", { n: num(plan.months) });
+}
+
+/** Label for a plan code (e.g. of a pending request), even if it is no longer offered. */
+function codeLabel(code, plans) {
+  const p = plans.find((x) => x.code === code);
+  if (p) return planLabel(p);
+  const m = /^(\d+)m$/.exec(code || "");
+  return m ? t("plan_n_months", { n: num(Number(m[1])) }) : t(`plan_${code}`);
+}
 
 export function renderLicense(main) {
   // Check with the server when the page opens (e.g. right after buying), at
@@ -145,19 +169,21 @@ export function renderLicense(main) {
   const methods = pay ? METHODS.filter(([k]) => pay[k]) : [];
   if (!methods.some(([k]) => k === buy.method)) buy.method = methods[0]?.[0] || "";
   const pending = st !== "premium" ? lic.pending_purchase : null;
-  const price = pay ? pay[buy.plan] : "";
+  const plans = planList(pay);
+  if (!plans.some((p) => p.code === buy.plan)) buy.plan = (plans.find((p) => p.popular) || plans[0])?.code || "";
+  const price = plans.find((p) => p.code === buy.plan)?.price || "";
   const number = pay && buy.method ? pay[buy.method] : "";
   const methodName = (METHODS.find(([k]) => k === buy.method) || [, ""])[1];
 
-  const buyCard = !pay
+  const buyCard = !pay || plans.length === 0
     ? `<section class="card stack"><h2>${t("buy_title")}</h2><p class="muted">${t("buy_help_contact")}</p><div class="row"><button class="btn" id="pay-retry">${t("refresh_license")}</button></div></section>`
     : `<section class="card stack">
         <h2>${t(st === "premium" ? "renew_title" : "buy_title")} ${tip("premium_buy")}</h2>
         <div class="stack"><strong>${t("buy_step1")}</strong>
-          <div class="plan-grid">${PLANS.map((k) => `
-            <button class="plan" data-plan="${k}" aria-pressed="${buy.plan === k}">
-              <span>${t(`plan_${k}`)}</span><strong>${esc(pay[k] || "")}</strong>
-              ${k === "yearly" ? `<small class="badge ok">${t("popular")}</small>` : ""}
+          <div class="plan-grid">${plans.map((p) => `
+            <button class="plan" data-plan="${esc(p.code)}" aria-pressed="${buy.plan === p.code}">
+              <span>${esc(planLabel(p))}</span><strong>${esc(p.price)}</strong>
+              ${p.popular ? `<small class="badge ok">${t("popular")}</small>` : ""}
             </button>`).join("")}</div></div>
         <div class="stack"><strong>${t("buy_step2")}</strong>
           <div class="chips">${methods.map(([k, n]) => `<button class="chip" data-method="${k}" aria-pressed="${buy.method === k}">${n}</button>`).join("")}</div>
@@ -184,7 +210,7 @@ export function renderLicense(main) {
         ${st === "locked_offline" ? `<p class="muted">${t("locked_offline")}</p>` : ""}
         ${lic.last_error && st !== "premium" ? `<small class="muted">${t("err_license_offline")}</small>` : ""}
       </section>
-      ${pending ? `<div class="banner info">⏳ ${t("request_pending", { plan: t(`plan_${pending.plan}`), trx: esc(pending.txn_id) })}</div>` : ""}
+      ${pending ? `<div class="banner info">⏳ ${t("request_pending", { plan: esc(codeLabel(pending.plan, plans)), trx: esc(pending.txn_id) })}</div>` : ""}
       ${buyCard}
       ${lic.purchase_url ? `<section class="card stack"><h2>${t("card_title")}</h2><p class="muted">${t("buy_help")}</p><div><button class="btn" id="buy">${t("get_premium")}</button></div></section>` : ""}
       <section class="card stack">
@@ -232,10 +258,31 @@ function prettyBrowsers(names) {
   return [...new Set(names.map((n) => BROWSER_NAMES[n]).filter(Boolean))];
 }
 
+// Backups are shown as a code, not readable JSON: the text would otherwise
+// list every site of the hidden lists (adult, gambling...), which can itself
+// be a trigger. Restoring still goes through the agent's lock rules.
+const BACKUP_PREFIX = "HTLCG1:";
+function backupCode(config) {
+  const bytes = new TextEncoder().encode(JSON.stringify(config));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return BACKUP_PREFIX + btoa(bin);
+}
+function readBackup(text) {
+  const s = text.trim();
+  if (!s.startsWith(BACKUP_PREFIX)) return JSON.parse(s); // older plain-text backups
+  const bin = atob(s.slice(BACKUP_PREFIX.length).replace(/\s+/g, ""));
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+}
+
 export function renderSettings(main) {
   const st = cfg().settings;
   const browsers = S.status.browsers;
   const running = browsers.running || [];
+  // While protected, a ticked protection switch can't be unticked (the agent
+  // refuses it too); show it greyed out instead of failing on Save.
+  const prot = cfg().protection.level !== "off" || (S.status.locked_list_ids || []).length > 0;
+  const keep = (on) => (on ? `checked ${prot ? "disabled" : ""}` : "");
   main.innerHTML = `
     <div class="page-head"><h1>${t("settings_title")}</h1></div>
     <div class="stack">
@@ -246,15 +293,16 @@ export function renderSettings(main) {
 
       <section class="card stack">
         <h2>${t("browsers_title")}</h2>
-        <label class="check"><input type="checkbox" id="s-unsup" ${st.block_unsupported_browsers ? "checked" : ""}><span>${t("block_unsupported")} ${tip("unsupported_browsers")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
-        <label class="check"><input type="checkbox" id="s-reqext" ${st.require_browser_extension ? "checked" : ""}><span>${t("guard_browsers")} ${tip("guard_browsers")}<br><span class="hint">${t("guard_browsers_help")}</span></span></label>
+        ${prot ? `<p class="hint">🔒 ${t("err_enforcement_locked")}</p>` : ""}
+        <label class="check"><input type="checkbox" id="s-unsup" ${keep(st.block_unsupported_browsers)}><span>${t("block_unsupported")} ${tip("unsupported_browsers")}<br><span class="hint">${t("block_unsupported_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-reqext" ${keep(st.require_browser_extension)}><span>${t("guard_browsers")} ${tip("guard_browsers")}<br><span class="hint">${t("guard_browsers_help")}</span></span></label>
         <div class="stack"><strong>${t("running_browsers")} ${tip("running_browsers")}</strong>
           ${running.length === 0 ? `<p class="muted">${t("no_browser_running")}</p>` : `<div class="list">${running.map((b) => `
             <div class="row between"><span>${esc(b.name)}</span><span class="badge ${b.protected ? "ok" : b.closes ? "danger" : "warn"}">${t(b.protected ? "br_protected" : b.closes ? "br_closes" : "br_unprotected")}</span></div>`).join("")}</div>`}
         </div>
-        <label class="check"><input type="checkbox" id="s-safe" ${st.force_safe_search ? "checked" : ""}><span>${t("safe_search")} ${tip("safe_search")}<br><span class="hint">${t("safe_search_help")}</span></span></label>
-        <label class="check"><input type="checkbox" id="s-private" ${st.block_private_windows ? "checked" : ""}><span>${t("block_private")} ${tip("private_windows")}<br><span class="hint">${t("block_private_help")}</span></span></label>
-        <label class="check"><input type="checkbox" id="s-managed" ${st.managed_extension ? "checked" : ""}><span>${t("managed_ext")} ${tip("managed_ext")}<br><span class="hint">${t("managed_ext_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-safe" ${keep(st.force_safe_search)}><span>${t("safe_search")} ${tip("safe_search")}<br><span class="hint">${t("safe_search_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-private" ${keep(st.block_private_windows)}><span>${t("block_private")} ${tip("private_windows")}<br><span class="hint">${t("block_private_help")}</span></span></label>
+        <label class="check"><input type="checkbox" id="s-managed" ${keep(st.managed_extension)}><span>${t("managed_ext")} ${tip("managed_ext")}<br><span class="hint">${t("managed_ext_help")}</span></span></label>
         ${st.managed_extension && !browsers.managed?.ready ? `<p class="banner warn">${t("managed_ext_needs_id")}</p>` : ""}
         <details><summary>${t("browser_lists")} ${tip("browser_lists")}</summary>
           <div class="stack">
@@ -266,14 +314,14 @@ export function renderSettings(main) {
 
       <section class="card stack">
         <h2>${t("filters")} ${tip("filters")}</h2>
-        ${FILTERS.map((f) => `<label class="check"><input type="checkbox" data-filter="${f}" ${st.distraction_filters.includes(f) ? "checked" : ""}>${t(`f_${f}`)}</label>`).join("")}
+        ${FILTERS.map((f) => `<label class="check"><input type="checkbox" data-filter="${f}" ${keep(st.distraction_filters.includes(f))}>${t(`f_${f}`)}</label>`).join("")}
       </section>
 
       <div><button class="btn primary" id="s-save">${t("save")}</button></div>
 
       <details class="card stack"><summary>${t("backup_title")} ${tip("backup")}</summary>
         <p class="hint">${t("backup_help")}</p>
-        <textarea id="s-backup" spellcheck="false" readonly>${esc(JSON.stringify(cfg(), null, 2))}</textarea>
+        <textarea id="s-backup" spellcheck="false" readonly>${esc(backupCode(cfg()))}</textarea>
         <div class="row"><button class="btn" id="s-copy">${t("backup_copy")}</button><button class="btn" id="s-import">${t("backup_import")}</button></div>
       </details>
 
@@ -320,12 +368,12 @@ export function renderSettings(main) {
   $("#s-import", main)?.addEventListener("click", () => {
     openModal(
       `<h2>${t("backup_import")}</h2><p class="muted">${t("backup_import_help")}</p>
-       <textarea id="imp" spellcheck="false" placeholder='{ "block_lists": [...] }'></textarea>
+       <textarea id="imp" spellcheck="false" placeholder="HTLCG1:..."></textarea>
        <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="imp-go">${t("backup_import")}</button></div>`,
       (m) => $("#imp-go", m).addEventListener("click", async () => {
         let parsed;
         try {
-          parsed = JSON.parse($("#imp", m).value);
+          parsed = readBackup($("#imp", m).value);
         } catch {
           return toast(t("backup_bad_json"), true);
         }

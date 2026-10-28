@@ -270,6 +270,7 @@ export default {
   plan_monthly: "شهري",
   plan_yearly: "سنوي",
   plan_lifetime: "مدى الحياة",
+  plan_n_months: "{n} أشهر",
   popular: "الأكثر طلبًا",
   send_money_to: "من تطبيق {method}، أرسل {price} إلى هذا الرقم:",
   send_money_hint: "بعد الدفع ستصلك رسالة فيها رقم العملية (TrxID) — أدخله أدناه.",

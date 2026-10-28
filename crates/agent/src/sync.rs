@@ -43,12 +43,17 @@ fn next_wait() -> u64 {
 /// Sleeps `secs` seconds, handling "Update now" requests from the app as they
 /// come; returns false when the agent is stopping.
 fn wait(app: &App, stop: &AtomicBool, secs: u64) -> bool {
-    for _ in 0..secs {
+    for i in 0..secs {
         if stop.load(Ordering::Relaxed) {
             return false;
         }
         if app.take_update_request() {
             app.check_update(true);
+        }
+        // Once a minute: re-check the time if the clock looks changed (or the
+        // server couldn't be reached yet since start).
+        if i % 60 == 59 && app.time_needs_sync() {
+            app.sync_time();
         }
         std::thread::sleep(Duration::from_secs(1));
     }
@@ -56,6 +61,9 @@ fn wait(app: &App, stop: &AtomicBool, secs: u64) -> bool {
 }
 
 pub fn run(app: Arc<App>, stop: Arc<AtomicBool>) {
+    // The real time first: until the server confirms it after a restart, the
+    // clock doesn't believe the computer's (possibly changed) clock.
+    app.sync_time();
     // A freshly installed device registers right away (its trial starts);
     // otherwise wait a little so devices that boot together spread out.
     if !app.has_checked_license() {

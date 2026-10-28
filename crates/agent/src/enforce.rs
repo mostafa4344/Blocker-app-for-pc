@@ -221,7 +221,11 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                 engine::record_stat(&mut g.state, &day, &format!("app:{name}"), 0, true);
                 g.state_dirty = true;
             }
-            if g.state_dirty && last_save.elapsed() >= SAVE_EVERY {
+            // Also save at least every minute: after a restart the clock resumes
+            // from the last saved trusted time until the server confirms it.
+            if (g.state_dirty && last_save.elapsed() >= SAVE_EVERY)
+                || last_save.elapsed() >= Duration::from_secs(60)
+            {
                 if let Err(e) = app.save_state(&mut g) {
                     eprintln!("contentguard: saving state failed: {e}");
                 }

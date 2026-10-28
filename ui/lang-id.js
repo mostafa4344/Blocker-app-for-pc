@@ -270,6 +270,7 @@ export default {
   plan_monthly: "Bulanan",
   plan_yearly: "Tahunan",
   plan_lifetime: "Seumur hidup",
+  plan_n_months: "{n} bulan",
   popular: "Populer",
   send_money_to: "Di aplikasi {method}, \"Send Money\" {price} ke nomor ini:",
   send_money_hint: "Setelah membayar Anda menerima TrxID (nomor transaksi) di pesan — masukkan di bawah.",
