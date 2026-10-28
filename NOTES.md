@@ -404,3 +404,5 @@ SQL: `supabase/migrations/20261025060000_update_table.sql` + `20261025070000_eas
 - **ফাঁক ৩ (ঠিক):** "অসমর্থিত ব্রাউজার বন্ধ" আর "এক্সটেনশন ছাড়া ব্রাউজার বন্ধ" এক সুইচে ছিল → Tor আটকাতে গেলে Edge/Firefox-ও বন্ধ হত। এখন দুটো আলাদা; নতুন ইউজারের জন্য প্রথমটা + SafeSearch ডিফল্টে চালু।
 - **বাকি (ইউজারের কাজ):** Edge on home PC শুধু Edge Add-ons স্টোরের এক্সটেনশন force-install করে; Firefox-এ AMO লাগে। দুই স্টোরে প্রকাশের পর এজেন্টে Edge/Firefox-এর আলাদা আইডি বসাতে হবে।
 - মালিকের PC-তে পরীক্ষার জন্য ১ মাস Premium (premium_grants id 1)।
+- Brave (per-user install): এক্সটেনশন policy দিয়ে নিজে বসে, পুরো-সাইট ও সাইটের-অংশ ব্লক পাস। Opera-তে এক্সটেনশন বসে না (Chrome policy মানে না) — পুরো-সাইট ব্লক পাস।
+- প্রাইভেট উইন্ডো policy (Chrome/Edge/Brave/Firefox) রেজিস্ট্রিতে বসে; DevTools-এর createBrowserContext policy মানে না, তাই ওই পরীক্ষা অর্থহীন।
