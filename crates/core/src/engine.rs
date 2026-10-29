@@ -64,13 +64,29 @@ pub struct ListRules {
     pub allow_apps: Vec<String>,
 }
 
+/// Exceptions that are in force. A single-page exception (`youtube.com/@x`)
+/// can only be honoured by the browser extension, which means opening the
+/// whole domain in the hosts file; that is safe only while browsers without
+/// the extension are closed ("Close browsers where the extension isn't
+/// working"). With that switch off, page exceptions wait and the whole site
+/// stays blocked, so no browser can get around the list.
+fn active_allow_sites(list: &BlockList, page_exceptions_ok: bool) -> Vec<String> {
+    list.allow_sites
+        .iter()
+        .filter(|a| {
+            page_exceptions_ok || SiteRule::parse(a).is_some_and(|r| r.path_prefix.is_none())
+        })
+        .cloned()
+        .collect()
+}
+
 impl ListRules {
-    fn from(list: &BlockList) -> Self {
+    fn from(list: &BlockList, page_exceptions_ok: bool) -> Self {
         ListRules {
             sites: list.sites.clone(),
             apps: list.apps.clone(),
             keywords: list.keywords.clone(),
-            allow_sites: list.allow_sites.clone(),
+            allow_sites: active_allow_sites(list, page_exceptions_ok),
             allow_apps: list.allow_apps.clone(),
         }
     }
@@ -185,6 +201,7 @@ fn push_unique(v: &mut Vec<String>, items: &[String]) {
 }
 
 pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
+    let page_ok = config.settings.require_browser_extension;
     let mut active: Vec<ActiveBlock> = Vec::new();
     let mut add = |list: &BlockList, reason, until, until_local, locked| {
         active.push(ActiveBlock {
@@ -277,7 +294,8 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
         push_unique(&mut p.blocked_sites, &list.sites);
         push_unique(&mut p.blocked_apps, &list.apps);
         push_unique(&mut p.keywords, &list.keywords);
-        let excepted: Vec<SiteRule> = list
+        let rules = ListRules::from(list, page_ok);
+        let excepted: Vec<SiteRule> = rules
             .allow_sites
             .iter()
             .filter_map(|a| SiteRule::parse(a))
@@ -294,7 +312,7 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
         if excepted.is_empty() {
             push_unique(&mut p.ext_keywords, &list.keywords);
         }
-        p.rules.push(ListRules::from(list));
+        p.rules.push(rules);
     }
     // An exception keeps a domain out of the hosts file only if no other
     // active list (without that exception) blocks it there.
@@ -322,10 +340,13 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
     p
 }
 
-fn list_matches_url(list: &BlockList, url: &str) -> bool {
+fn list_matches_url(config: &Config, list: &BlockList, url: &str) -> bool {
     !list.allowlist_mode
         && (site_matches(&list.sites, url) || keyword_matches(&list.keywords, url))
-        && !site_matches(&list.allow_sites, url)
+        && !site_matches(
+            &active_allow_sites(list, config.settings.require_browser_extension),
+            url,
+        )
 }
 
 /// Limits whose block list matches the URL.
@@ -337,7 +358,7 @@ pub fn limits_for_url<'a>(config: &'a Config, url: &str) -> Vec<&'a Limit> {
             l.enabled
                 && config
                     .block_list(&l.block_list_id)
-                    .is_some_and(|b| list_matches_url(b, url))
+                    .is_some_and(|b| list_matches_url(config, b, url))
         })
         .collect()
 }
@@ -616,7 +637,17 @@ mod tests {
             &[],
             &["youtube.com/@khanacademy"],
         )];
-        assert!(effective_policy(&c, &State::default(), now_at(10)).needs_extension);
+        // Switch "close browsers where the extension isn't working" off: the
+        // page exception waits and the whole site stays blocked everywhere.
+        c.settings.require_browser_extension = false;
+        let p = effective_policy(&c, &State::default(), now_at(10));
+        assert!(!p.needs_extension && p.host_exceptions.is_empty());
+        assert!(p.url_blocked("https://www.youtube.com/@khanacademy"));
+        // Switch on: the page opens (in browsers with the extension).
+        c.settings.require_browser_extension = true;
+        let p = effective_policy(&c, &State::default(), now_at(10));
+        assert!(p.needs_extension);
+        assert!(!p.url_blocked("https://www.youtube.com/@khanacademy"));
         // A subdomain exception stays exact in the hosts file: no extension needed.
         c.block_lists = vec![always("g", &["google.com"], &[], &["mail.google.com"])];
         assert!(!effective_policy(&c, &State::default(), now_at(10)).needs_extension);
@@ -648,6 +679,7 @@ mod tests {
         let st = State::default();
         // Video list blocks YouTube but allows one educational channel.
         let mut c = Config::default();
+        c.settings.require_browser_extension = true;
         c.block_lists.push(always(
             "video",
             &["youtube.com"],

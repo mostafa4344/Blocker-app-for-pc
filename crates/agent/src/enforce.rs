@@ -179,20 +179,14 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         let blocking = !policy.is_empty();
         let mut blocked_hits: Vec<String> = Vec::new();
         // A supported browser whose extension isn't reporting in (not installed,
-        // disabled, or filtering not working) is closed while blocking when
-        // "require extension" is on. This is separate from closing browsers that
-        // can't be filtered at all (Tor...), which is safe to enable for everyone:
-        // the extension can't be force-installed in every browser yet (Edge on
-        // home PCs only takes Edge Add-ons extensions, Firefox needs AMO).
-        // Always guarded: browsers the extension is installed in automatically
-        // (Chrome, Brave, Vivaldi, Chromium): a missing extension there means it
-        // was removed or turned off. All browsers are guarded when the user asks
-        // for it, or while a page-level exception needs the extension.
-        let guard_all = config.settings.require_browser_extension || policy.needs_extension;
-        let auto_installed = |display: &str| {
-            config.settings.managed_extension
-                && matches!(display, "Chrome" | "Brave" | "Vivaldi" | "Chromium")
-        };
+        // disabled, or filtering not working) is closed while blocking ONLY when
+        // the user turned on "Close browsers where the extension isn't working"
+        // (Protection page). With it off nothing is closed for this reason; the
+        // OS-level filter (hosts file, SafeSearch) still works in every browser,
+        // and page-level exceptions stay inactive (see engine::active_allow_sites)
+        // so the switch being off never opens a way around a list.
+        // Closing browsers that can't be filtered at all (Tor...) is a separate switch.
+        let guard_browsers = config.settings.require_browser_extension;
         let mut report: Vec<(&'static str, bool, bool)> = Vec::new();
         // Distinct browser brands running per engine family, to know whether an
         // old family-only extension report can be attributed to one browser.
@@ -220,8 +214,7 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                     *ago < EXTENSION_GRACE_SECS && report_covers(k, brand, family, sole)
                 });
                 let running_for = now_epoch.saturating_sub(p.start_time);
-                let guard = guard_all || auto_installed(display);
-                let will_close = guard && blocking && !protected;
+                let will_close = guard_browsers && blocking && !protected;
                 if will_close {
                     still_closing.push(display);
                     let since = *closing_since.entry(display).or_insert_with(|| {
