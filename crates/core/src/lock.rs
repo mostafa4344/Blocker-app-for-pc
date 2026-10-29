@@ -155,7 +155,7 @@ pub fn validate_update(
             n.enabled
                 && (n.locked || !o.locked)
                 && n.block_list_id == o.block_list_id
-                && n.daily_minutes <= o.daily_minutes
+                && (0..7).all(|d| n.minutes_on(d) <= o.minutes_on(d))
                 && match (o.max_opens, n.max_opens) {
                     (Some(a), Some(b)) => b <= a,
                     (Some(_), None) => false,
@@ -267,6 +267,11 @@ pub fn validate_shape(c: &Config) -> Result<(), PolicyError> {
         }
         if l.daily_minutes > 24 * 60 {
             return invalid("limit.daily_minutes");
+        }
+        if !(l.day_minutes.is_empty() || l.day_minutes.len() == 7)
+            || l.day_minutes.iter().any(|m| *m > 24 * 60)
+        {
+            return invalid("limit.day_minutes");
         }
     }
     if let Some(p) = &c.protection.partner {
@@ -448,6 +453,7 @@ mod tests {
                 max_opens: Some(5),
                 enabled: true,
                 locked: true,
+                ..Default::default()
             }],
             ..Default::default()
         }
@@ -489,6 +495,19 @@ mod tests {
             validate_update(&old, &looser, &State::default(), now),
             Err(PolicyError::LimitLocked { .. })
         ));
+        // More time on one weekday is looser too.
+        let mut weekend = old.clone();
+        weekend.limits[0].day_minutes = vec![30, 30, 30, 30, 30, 90, 30];
+        assert!(matches!(
+            validate_update(&old, &weekend, &State::default(), now),
+            Err(PolicyError::LimitLocked { .. })
+        ));
+        let mut fewer = old.clone();
+        fewer.limits[0].day_minutes = vec![30, 30, 30, 30, 30, 10, 0];
+        assert!(validate_update(&old, &fewer, &State::default(), now).is_ok());
+        let mut bad = old.clone();
+        bad.limits[0].day_minutes = vec![10, 10];
+        assert!(validate_update(&old, &bad, &State::default(), now).is_err());
         let mut tighter = old.clone();
         tighter.limits[0].daily_minutes = 10;
         tighter.limits[0].max_opens = Some(2);

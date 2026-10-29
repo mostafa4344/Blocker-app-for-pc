@@ -17,6 +17,7 @@ mod enforce;
 mod fingerprint;
 mod hosts;
 mod license;
+mod notify;
 mod paths;
 mod processes;
 mod safesearch;

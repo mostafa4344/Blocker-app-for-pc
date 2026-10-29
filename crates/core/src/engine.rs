@@ -17,6 +17,11 @@ impl Now {
     pub fn day(&self) -> String {
         self.local.format("%Y-%m-%d").to_string()
     }
+    /// 0 = Monday … 6 = Sunday (local).
+    pub fn weekday(&self) -> u8 {
+        use chrono::Datelike;
+        self.local.weekday().num_days_from_monday() as u8
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -158,11 +163,12 @@ fn usage_for<'a>(state: &'a State, day: &str, limit_id: &str) -> Option<&'a Usag
         .find(|u| u.day == day && u.limit_id == limit_id)
 }
 
-pub fn limit_exhausted(limit: &Limit, state: &State, day: &str) -> bool {
+pub fn limit_exhausted(limit: &Limit, state: &State, day: &str, weekday: u8) -> bool {
+    let minutes = limit.minutes_on(weekday);
     let Some(u) = usage_for(state, day, &limit.id) else {
-        return limit.daily_minutes == 0;
+        return minutes == 0;
     };
-    u.seconds >= limit.daily_minutes as u64 * 60 || limit.max_opens.is_some_and(|m| u.opens >= m)
+    u.seconds >= minutes as u64 * 60 || limit.max_opens.is_some_and(|m| u.opens >= m)
 }
 
 fn push_unique(v: &mut Vec<String>, items: &[String]) {
@@ -223,7 +229,7 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
         let Some(list) = config.block_list(&l.block_list_id) else {
             continue;
         };
-        if limit_exhausted(l, state, &day) {
+        if limit_exhausted(l, state, &day, now.weekday()) {
             let midnight = (now.local.date() + chrono::Duration::days(1)).and_hms_opt(0, 0, 0);
             add(list, Reason::Limit, None, midnight, l.locked);
         } else {
@@ -232,7 +238,7 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
             metered.push(Metered {
                 limit_id: l.id.clone(),
                 block_list_id: list.id.clone(),
-                remaining_seconds: (l.daily_minutes as u64 * 60).saturating_sub(used),
+                remaining_seconds: (l.minutes_on(now.weekday()) as u64 * 60).saturating_sub(used),
                 opens_left: l
                     .max_opens
                     .map(|m| m.saturating_sub(u.map_or(0, |u| u.opens))),
@@ -517,6 +523,7 @@ mod tests {
             max_opens: Some(3),
             enabled: true,
             locked: false,
+            ..Default::default()
         });
         let now = now_at(10);
         let mut state = State::default();
@@ -546,6 +553,32 @@ mod tests {
     }
 
     #[test]
+    fn weekend_limit_gives_more_time() {
+        let mut c = config();
+        c.limits.push(Limit {
+            id: "l".into(),
+            block_list_id: "social".into(),
+            daily_minutes: 30,
+            day_minutes: vec![30, 30, 30, 30, 30, 120, 0],
+            enabled: true,
+            ..Default::default()
+        });
+        let monday = now_at(10);
+        assert_eq!(monday.weekday(), 0);
+        let p = effective_policy(&c, &State::default(), monday);
+        assert_eq!(p.metered[0].remaining_seconds, 30 * 60);
+        let mut saturday = monday;
+        saturday.local += Duration::days(5);
+        let p = effective_policy(&c, &State::default(), saturday);
+        assert_eq!(p.metered[0].remaining_seconds, 120 * 60);
+        // 0 minutes on Sunday = blocked all day.
+        let mut sunday = monday;
+        sunday.local += Duration::days(6);
+        let p = effective_policy(&c, &State::default(), sunday);
+        assert_eq!(p.active[0].reason, Reason::Limit);
+    }
+
+    #[test]
     fn opens_limit() {
         let mut c = config();
         c.limits.push(Limit {
@@ -555,6 +588,7 @@ mod tests {
             max_opens: Some(2),
             enabled: true,
             locked: false,
+            ..Default::default()
         });
         let now = now_at(10);
         let mut state = State::default();

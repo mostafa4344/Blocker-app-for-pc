@@ -89,10 +89,24 @@ pub struct Limit {
     pub id: String,
     pub block_list_id: String,
     pub daily_minutes: u32,
+    /// Optional different allowance per weekday (7 values, Monday first), e.g.
+    /// more time on weekends. Empty = `daily_minutes` every day.
+    pub day_minutes: Vec<u32>,
     /// Optional cap on how many times per day the sites/apps may be opened.
     pub max_opens: Option<u32>,
     pub enabled: bool,
     pub locked: bool,
+}
+
+impl Limit {
+    /// Allowed minutes on a weekday (0 = Monday … 6 = Sunday).
+    pub fn minutes_on(&self, weekday: u8) -> u32 {
+        if self.day_minutes.len() == 7 {
+            self.day_minutes[weekday.min(6) as usize]
+        } else {
+            self.daily_minutes
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]

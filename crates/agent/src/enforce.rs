@@ -46,6 +46,7 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut closed_pids: HashSet<sysinfo::Pid> = HashSet::new();
     let mut last_save = Instant::now();
     let mut last_tick = Instant::now();
+    let mut limit_warnings = crate::notify::LimitWarnings::default();
 
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let tick_secs = last_tick.elapsed().as_secs().clamp(1, 10);
@@ -58,6 +59,25 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             crate::ALLOW_STOP.store(allow_stop, std::sync::atomic::Ordering::Relaxed);
             (now, policy, g.config.clone())
         };
+
+        // A heads-up 5 minutes before a daily allowance runs out.
+        let metered: Vec<(String, u64)> = policy
+            .metered
+            .iter()
+            .map(|m| (m.limit_id.clone(), m.remaining_seconds))
+            .collect();
+        for (id, remaining) in limit_warnings.due(&now.day(), &metered) {
+            let list = policy
+                .metered
+                .iter()
+                .find(|m| m.limit_id == id)
+                .and_then(|m| config.block_list(&m.block_list_id));
+            if let Some(list) = list {
+                let (title, body) =
+                    crate::notify::limit_text(&config.settings.language, &list.name, remaining);
+                crate::notify::show(&title, &body);
+            }
+        }
 
         // Websites (hosts file) + SafeSearch redirects. Rewritten only when the
         // desired entries change; a failed write is retried on the next tick.

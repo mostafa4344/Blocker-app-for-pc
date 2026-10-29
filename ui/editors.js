@@ -247,24 +247,52 @@ export function renderSchedules(main) {
 
 // ---------- limits ----------
 
+/** Today's weekday, Monday = 0 (the agent uses the same order). */
+const todayIndex = () => (new Date().getDay() + 6) % 7;
+/** Allowed minutes on a weekday: the per-day value when set, else the daily one. */
+export const minutesOn = (l, d) => (l.day_minutes?.length === 7 ? l.day_minutes[d] : l.daily_minutes);
+
 function editLimit(limit) {
   const isNew = !limit;
-  const l = limit ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id ?? "", daily_minutes: 30, max_opens: null, enabled: true, locked: false };
+  const l = limit ?? { id: newId(), block_list_id: cfg().block_lists.find((b) => !b.always_on)?.id ?? "", daily_minutes: 30, day_minutes: [], max_opens: null, enabled: true, locked: false };
+  const perDay = l.day_minutes?.length === 7;
   openModal(
     `<h2>${isNew ? t("add_limit") : t("limits_title")}</h2>
      <label>${t("choose_list")}<select id="m-list" ${!isNew && guardedItem(l) ? "disabled" : ""}>${listOptions(l.block_list_id)}</select></label>
      ${targetPickerRow("m-list", !isNew && guardedItem(l))}
      <label>${t("daily_minutes")} ${tip("limit_minutes")}<input type="number" id="m-min" min="0" max="1440" value="${l.daily_minutes}"></label>
+     <label class="check"><input type="checkbox" id="m-perday" ${perDay ? "checked" : ""}>${t("limit_per_day")} ${tip("limit_days")}</label>
+     <div id="m-days" class="day-minutes" ${perDay ? "" : "hidden"}>${t("day_names").map((d, i) => `
+       <label>${esc(d)}<input type="number" min="0" max="1440" data-day="${i}" value="${minutesOn(l, i)}"></label>`).join("")}
+       <p class="hint">${t("limit_per_day_hint")}</p>
+     </div>
      <label>${t("max_opens")} ${tip("limit_opens")}<input type="number" id="m-opens" min="1" max="500" value="${l.max_opens ?? ""}"></label>
      <label class="check"><input type="checkbox" id="m-locked" ${l.locked ? "checked" : ""}>${t("lock_limit")} ${tip("limit_lock")}</label>
      <div class="actions"><button class="btn" data-close>${t("cancel")}</button><button class="btn primary" id="m-save">${t("save")}</button></div>`,
-    (m) => { wireTargetPicker(m); $("#m-save", m).addEventListener("click", async () => {
+    (m) => { wireTargetPicker(m);
+      const minutes = (el) => Math.min(1440, Math.max(0, Math.round(Number(el.value) || 0)));
+      // Turning per-day on starts every day from the daily value; changing the
+      // daily value later updates the days that still match it.
+      $("#m-perday", m).addEventListener("change", (e) => {
+        $("#m-days", m).hidden = !e.target.checked;
+        if (e.target.checked) $$("#m-days input", m).forEach((i) => (i.value = minutes($("#m-min", m))));
+      });
+      let prevDaily = minutes($("#m-min", m));
+      $("#m-min", m).addEventListener("input", () => {
+        const v = minutes($("#m-min", m));
+        $$("#m-days input", m).forEach((i) => { if (minutes(i) === prevDaily) i.value = v; });
+        prevDaily = v;
+      });
+      $("#m-save", m).addEventListener("click", async () => {
       if (!$("#m-list", m).value) return toast(t("pick_at_least_one"), true);
       const opens = $("#m-opens", m).value.trim();
+      const daily = minutes($("#m-min", m));
+      const days = $$("#m-days input", m).map(minutes);
       const updated = {
         ...l,
         block_list_id: $("#m-list", m).value,
-        daily_minutes: Math.max(0, Math.round(Number($("#m-min", m).value) || 0)),
+        daily_minutes: daily,
+        day_minutes: $("#m-perday", m).checked && days.some((d) => d !== daily) ? days : [],
         max_opens: opens ? Math.max(1, Math.round(Number(opens))) : null,
         locked: $("#m-locked", m).checked,
       };
@@ -285,12 +313,16 @@ export function renderLimits(main) {
     <div class="page-head"><div><h1>${t("limits_title")} ${tip("limits_overview")}</h1><p class="muted">${t("limits_intro")}</p></div><button class="btn primary" id="add">+ ${t("add_limit")}</button></div>
     <div class="list">${items.length === 0 ? `<p class="muted">${t("no_limits")}</p>` : items.map((l) => {
       const u = usage.find((x) => x.limit_id === l.id) ?? { seconds: 0, opens: 0 };
-      const pct = l.daily_minutes ? Math.min(100, Math.round((u.seconds / (l.daily_minutes * 60)) * 100)) : 100;
+      const today = minutesOn(l, todayIndex());
+      const pct = today ? Math.min(100, Math.round((u.seconds / (today * 60)) * 100)) : 100;
+      const week = l.day_minutes?.length === 7
+        ? `<div class="meta">${t("day_names").map((d, i) => `${esc(d)} ${l.day_minutes[i] ? fmtDur(l.day_minutes[i] * 60) : t("day_off")}`).join(" · ")}</div>` : "";
       return `
       <div class="item">
         <div class="stack">
           <div class="row"><strong>${esc(listName(l.block_list_id))}</strong>${lockBadge(guardedItem(l))}</div>
-          <div class="meta">${t("used_today")}: ${fmtDur(u.seconds)} / ${fmtDur(l.daily_minutes * 60)}${l.max_opens ? ` · ${num(u.opens)}/${num(l.max_opens)} ${t("opens")}` : ""}</div>
+          <div class="meta">${t("used_today")}: ${fmtDur(u.seconds)} / ${fmtDur(today * 60)}${l.max_opens ? ` · ${num(u.opens)}/${num(l.max_opens)} ${t("opens")}` : ""}</div>
+          ${week}
           <div class="progress ${pct >= 100 ? "full" : ""}"><div data-w="${pct}"></div></div>
         </div>
         <div class="row">

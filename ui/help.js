@@ -106,6 +106,13 @@ export const HELP = {
         "One per line. http://, www. and the trailing / are removed for you."],
       note: "Adding an exception makes a list weaker, so while protection is on exceptions can only be removed, not added. Lower protection first if you really need one.",
     },
+    limit_days: {
+      t: "Different time on some days",
+      p: ["Give a different allowance for each day of the week, for example 30 minutes on school days and 2 hours on the weekend. 0 means the list is blocked all that day."],
+      how: ["Tick \"Different time on some days\" and change the days you want. The other days keep the daily minutes.",
+        "Five minutes before today's time runs out, a small message tells you, so you can save your work or finish the video."],
+      note: "While the limit is locked or protection is on, a day's time can only be lowered, not raised.",
+    },
     hidden_list: {
       t: "Why this list is hidden",
       p: ["For sensitive topics, seeing the list of sites can itself pull you back. So the app shows only how many items it contains, never the items themselves.",
@@ -143,7 +150,8 @@ export const HELP = {
     limit_minutes: {
       t: "Maximum minutes per day",
       p: ["How many minutes the list may be used in total each day. When the time runs out, everything in the list is blocked until midnight.",
-        "0 means it is blocked all day."],
+        "0 means it is blocked all day.",
+        "Five minutes before the time runs out, a small message on the screen tells you."],
     },
     limit_opens: {
       t: "Maximum opens per day",
@@ -381,6 +389,13 @@ export const HELP = {
         "প্রতি লাইনে একটা। http://, www. আর শেষের / নিজে থেকে বাদ যায়।"],
       note: "ব্যতিক্রম যোগ করলে লিস্ট দুর্বল হয়, তাই সুরক্ষা চালু থাকলে শুধু সরানো যায়, যোগ করা যায় না। সত্যিই দরকার হলে আগে সুরক্ষা কমান।",
     },
+    limit_days: {
+      t: "কিছু দিনে আলাদা সময়",
+      p: ["সপ্তাহের প্রতিটা দিনের জন্য আলাদা সময় দিন, যেমন স্কুলের দিনে ৩০ মিনিট আর ছুটির দিনে ২ ঘণ্টা। ০ মানে সেদিন সারাদিন লিস্টটা ব্লক।"],
+      how: ["\"কিছু দিনে আলাদা সময়\" টিক দিয়ে যে দিনগুলো চান বদলান। বাকি দিনে দৈনিক মিনিটই থাকবে।",
+        "আজকের সময় শেষ হওয়ার ৫ মিনিট আগে একটা ছোট বার্তা জানিয়ে দেবে, যাতে কাজ সেভ করতে বা ভিডিও শেষ করতে পারেন।"],
+      note: "সীমা লক থাকলে বা সুরক্ষা চালু থাকলে কোনো দিনের সময় শুধু কমানো যায়, বাড়ানো যায় না।",
+    },
     hidden_list: {
       t: "লিস্টটা কেন লুকানো",
       p: ["স্পর্শকাতর বিষয়ে সাইটের নাম দেখাটাই আবার টেনে নিতে পারে। তাই অ্যাপ শুধু কতগুলো আছে তা দেখায়, নামগুলো কখনো দেখায় না।",
@@ -418,7 +433,8 @@ export const HELP = {
     limit_minutes: {
       t: "দিনে সর্বোচ্চ মিনিট",
       p: ["প্রতিদিন লিস্টটা মোট কত মিনিট ব্যবহার করা যাবে। সময় শেষ হলে লিস্টের সবকিছু মাঝরাত পর্যন্ত ব্লক।",
-        "০ মানে সারাদিন ব্লক।"],
+        "০ মানে সারাদিন ব্লক।",
+        "সময় শেষ হওয়ার ৫ মিনিট আগে স্ক্রিনে একটা ছোট বার্তা জানিয়ে দেয়।"],
     },
     limit_opens: {
       t: "দিনে সর্বোচ্চ কতবার খোলা",
