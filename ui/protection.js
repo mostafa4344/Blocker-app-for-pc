@@ -1,5 +1,5 @@
 // Protection (uninstall/settings), general settings, and the Premium/account page.
-import { S, $, $$, t, num, esc, languageOptions, api, act, cfg, clone, refresh, fmtTime, fmtDate, openModal, closeModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
+import { S, $, $$, t, num, esc, languageOptions, api, act, cfg, clone, refresh, fmtTime, fmtDate, listName, openModal, closeModal, challengeModal, saveConfig, toast, errMsg } from "/core.js";
 import { tip } from "/help.js";
 
 const LEVELS = ["off", "mindful", "committed"];
@@ -39,6 +39,7 @@ function requestRow(r) {
   const info = [];
   if (r.status === "pending" && r.available_at) info.push(`${t("available_at")}: ${fmtTime(r.available_at)}`);
   if (r.status === "approved" && r.kind.type === "uninstall") info.push(t("uninstall_ready"));
+  if (r.kind.type === "add_exceptions") info.unshift(`${listName(r.kind.list_id)}: ${[...r.kind.sites, ...r.kind.apps].join(", ")}`);
   const badge = r.status === "approved" ? "ok" : r.status === "denied" ? "danger" : "";
   return `<div class="item"><div><div class="row"><strong>${kind}</strong><span class="badge ${badge}">${status}</span></div>
     <div class="meta">${esc(info.join(" · "))}${r.reason ? ` — “${esc(r.reason)}”` : ""}</div></div><div class="row">${actions.join("")}</div></div>`;

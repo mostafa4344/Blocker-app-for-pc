@@ -163,6 +163,8 @@ fn main() {
             Ok(_) => {
                 browserpolicy::remove();
                 browserpolicy::set_private_windows_blocked(false);
+                browserpolicy::set_secure_dns_off(false);
+                browserpolicy::set_safe_mode_start(false);
                 0
             }
             Err(e) => {

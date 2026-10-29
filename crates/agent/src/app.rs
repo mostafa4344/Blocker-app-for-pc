@@ -662,6 +662,31 @@ impl App {
                     ));
                 }
             }
+            RequestKind::AddExceptions {
+                list_id,
+                sites,
+                apps,
+            } => {
+                lock::new_exceptions(&inner.config, list_id, sites, apps)?;
+                let locked =
+                    lock::locked_list_ids(&inner.config, &inner.state, now.utc).contains(list_id);
+                if !locked {
+                    return Err(ApiError::new(
+                        409,
+                        "not_locked",
+                        "this list is not locked: save the exceptions directly",
+                    ));
+                }
+                // Protection off but the list is held by a locked session or a
+                // locked schedule/limit: it stays as it is until that ends.
+                if inner.config.protection.level == ProtectionLevel::Off {
+                    return Err(ApiError::new(
+                        409,
+                        "list_locked_until_end",
+                        "this list is locked until its session, schedule or limit ends",
+                    ));
+                }
+            }
             RequestKind::Uninstall => {}
         }
         if inner
@@ -761,6 +786,16 @@ impl App {
             }
             RequestKind::EndSession { session_id } => {
                 inner.state.sessions.retain(|s| s.id != session_id);
+            }
+            RequestKind::AddExceptions {
+                list_id,
+                sites,
+                apps,
+            } => {
+                let mut next = inner.config.clone();
+                lock::add_exceptions(&mut next, &list_id, &sites, &apps)?;
+                inner.config = next;
+                self.save_config(inner)?;
             }
             RequestKind::Uninstall => {
                 return Ok(

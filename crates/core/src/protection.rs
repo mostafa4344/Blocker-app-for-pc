@@ -28,6 +28,13 @@ pub enum RequestKind {
     EndSession {
         session_id: String,
     },
+    /// Add "always allowed" exceptions to a locked list. Adding an exception
+    /// loosens the list, so it waits like any other loosening.
+    AddExceptions {
+        list_id: String,
+        sites: Vec<String>,
+        apps: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

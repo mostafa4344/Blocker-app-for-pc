@@ -174,6 +174,11 @@ async function finishOnboarding() {
     // stay in SafeSearch (otherwise image search shows what the lists block).
     c1.settings.block_unsupported_browsers = true;
     c1.settings.force_safe_search = true;
+    // The extension installs itself where the browser allows it (Chrome,
+    // Brave, Vivaldi), and private windows - where extensions often don't run -
+    // are turned off. Neither gets in the way of normal browsing.
+    c1.settings.managed_extension = true;
+    c1.settings.block_private_windows = true;
     await api("PUT", "/api/config", c1);
     for (const id of ob.presets) await addPreset(id);
     await refresh();

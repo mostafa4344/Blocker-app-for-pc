@@ -100,6 +100,10 @@ pub struct Policy {
     pub host_exceptions: Vec<String>,
     /// Per-list rules (the source of truth for pages and apps).
     pub rules: Vec<ListRules>,
+    /// A page-level exception (e.g. `youtube.com/@channel`) took a whole
+    /// domain out of the hosts file, so only the browser extension still
+    /// blocks the rest of that site: browsers without it must not be used.
+    pub needs_extension: bool,
     /// When true, only `allowed_sites` may be visited.
     pub allowlist_active: bool,
     pub allowed_sites: Vec<String>,
@@ -303,7 +307,13 @@ pub fn effective_policy(config: &Config, state: &State, now: Now) -> Policy {
             let elsewhere = p.rules.iter().enumerate().any(|(j, o)| {
                 j != i && site_matches(&o.sites, &probe) && !site_matches(&o.allow_sites, &probe)
             });
-            if !elsewhere && !p.host_exceptions.contains(&a.domain) {
+            if elsewhere {
+                continue;
+            }
+            if a.path_prefix.is_some() {
+                p.needs_extension = true;
+            }
+            if !p.host_exceptions.contains(&a.domain) {
                 p.host_exceptions.push(a.domain.clone());
             }
         }
@@ -595,6 +605,28 @@ mod tests {
         record_usage(&mut state, &["l".into()], &now.day(), 1, true);
         record_usage(&mut state, &["l".into()], &now.day(), 1, true);
         assert!(!effective_policy(&c, &state, now).is_empty());
+    }
+
+    #[test]
+    fn page_exceptions_need_the_extension() {
+        let mut c = config();
+        c.block_lists = vec![always(
+            "v",
+            &["youtube.com"],
+            &[],
+            &["youtube.com/@khanacademy"],
+        )];
+        assert!(effective_policy(&c, &State::default(), now_at(10)).needs_extension);
+        // A subdomain exception stays exact in the hosts file: no extension needed.
+        c.block_lists = vec![always("g", &["google.com"], &[], &["mail.google.com"])];
+        assert!(!effective_policy(&c, &State::default(), now_at(10)).needs_extension);
+        // Another list still blocks the whole domain: it stays in the hosts file.
+        c.block_lists = vec![
+            always("v", &["youtube.com"], &[], &["youtube.com/@khanacademy"]),
+            always("w", &["youtube.com"], &[], &[]),
+        ];
+        let p = effective_policy(&c, &State::default(), now_at(10));
+        assert!(!p.needs_extension && p.host_exceptions.is_empty());
     }
 
     fn always(id: &str, sites: &[&str], keywords: &[&str], allow: &[&str]) -> BlockList {

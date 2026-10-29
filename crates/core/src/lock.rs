@@ -106,6 +106,70 @@ fn list_is_stricter(new: &BlockList, old: &BlockList) -> bool {
         && superset(&old.allow_apps, &new.allow_apps)
 }
 
+/// Cleans the requested exceptions: drops blanks and the ones the list
+/// already has; refuses unknown lists, invalid sites and "*".
+pub fn new_exceptions(
+    config: &Config,
+    list_id: &str,
+    sites: &[String],
+    apps: &[String],
+) -> Result<(Vec<String>, Vec<String>), PolicyError> {
+    let list = config
+        .block_list(list_id)
+        .ok_or_else(|| PolicyError::NotFound {
+            what: "block_list".into(),
+        })?;
+    let fresh = |items: &[String], have: &[String]| {
+        let mut out: Vec<String> = Vec::new();
+        for i in items.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            if !have
+                .iter()
+                .chain(out.iter())
+                .any(|h| h.eq_ignore_ascii_case(i))
+            {
+                out.push(i.to_string());
+            }
+        }
+        out
+    };
+    let sites = fresh(sites, &list.allow_sites);
+    let apps = fresh(apps, &list.allow_apps);
+    if sites
+        .iter()
+        .any(|a| crate::matcher::SiteRule::parse(a).is_none_or(|r| r.domain.is_empty()))
+    {
+        return Err(PolicyError::Invalid {
+            what: "block_list.allow_sites".into(),
+        });
+    }
+    if sites.is_empty() && apps.is_empty() {
+        return Err(PolicyError::Invalid {
+            what: "exceptions.empty".into(),
+        });
+    }
+    Ok((sites, apps))
+}
+
+/// Adds exceptions to a list (used when an approved request is applied).
+pub fn add_exceptions(
+    config: &mut Config,
+    list_id: &str,
+    sites: &[String],
+    apps: &[String],
+) -> Result<(), PolicyError> {
+    let (sites, apps) = match new_exceptions(config, list_id, sites, apps) {
+        Ok(v) => v,
+        // Already there (e.g. added again meanwhile): nothing to do.
+        Err(PolicyError::Invalid { what }) if what == "exceptions.empty" => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    if let Some(l) = config.block_lists.iter_mut().find(|b| b.id == list_id) {
+        l.allow_sites.extend(sites);
+        l.allow_apps.extend(apps);
+    }
+    validate_shape(config)
+}
+
 /// Validates replacing `old` with `new` given what is currently locked.
 pub fn validate_update(
     old: &Config,
@@ -477,6 +541,35 @@ mod tests {
         deleted.schedules.clear();
         deleted.limits.clear();
         assert!(validate_update(&old, &deleted, &State::default(), now).is_err());
+    }
+
+    #[test]
+    fn exceptions_only_through_a_request() {
+        let old = base();
+        let now = Utc::now();
+        let v = |x: &[&str]| x.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        // Adding directly to a locked list is refused...
+        let mut direct = old.clone();
+        direct.block_lists[0].allow_sites = v(&["mail.google.com"]);
+        assert!(validate_update(&old, &direct, &State::default(), now).is_err());
+        // ...the request path cleans and checks the entries...
+        assert!(new_exceptions(&old, "a", &v(&["*"]), &[]).is_err());
+        assert!(new_exceptions(&old, "zzz", &v(&["x.com"]), &[]).is_err());
+        assert!(new_exceptions(&old, "a", &v(&[" ", ""]), &[]).is_err());
+        let (sites, apps) = new_exceptions(
+            &old,
+            "a",
+            &v(&["mail.google.com", "MAIL.google.com"]),
+            &v(&["game.exe"]),
+        )
+        .unwrap();
+        assert_eq!((sites.len(), apps.len()), (1, 1));
+        // ...and an approved request adds them once.
+        let mut next = old.clone();
+        add_exceptions(&mut next, "a", &sites, &apps).unwrap();
+        add_exceptions(&mut next, "a", &sites, &apps).unwrap();
+        assert_eq!(next.block_lists[0].allow_sites, v(&["mail.google.com"]));
+        assert_eq!(next.block_lists[0].allow_apps, v(&["game.exe"]));
     }
 
     #[test]

@@ -104,7 +104,7 @@ export const HELP = {
         "One page or channel: youtube.com/@khanacademy (pages work in browsers with the extension; whole sites work everywhere)",
         "An app: minecraft.exe",
         "One per line. http://, www. and the trailing / are removed for you."],
-      note: "Adding an exception makes a list weaker, so while protection is on exceptions can only be removed, not added. Lower protection first if you really need one.",
+      note: "Adding an exception makes a list weaker. So while the list is locked or protection is on, a new exception is not added at once: it becomes a request and is added after the same waiting time as any other loosening (Protection → Requests). Removing an exception always works at once.",
     },
     limit_days: {
       t: "Different time on some days",
@@ -245,7 +245,8 @@ export const HELP = {
     guard_browsers: {
       t: "Close browsers where the extension isn't working",
       p: ["Blocking parts of sites (Shorts, Reels) and words happens inside the browser through the extension. Without this switch, someone could get around that by removing the extension or switching to a browser that doesn't have it.",
-        "When it is on, while anything is being blocked, a supported browser whose extension isn't installed or isn't working is closed after a 90-second warning. It also installs the extension automatically in every browser where that's possible."],
+        "When it is on, while anything is being blocked, a supported browser whose extension isn't installed or isn't working is closed after a 90-second warning. It also installs the extension automatically in every browser where that's possible.",
+        "Even with this switch off, Chrome, Brave, Vivaldi and Chromium are always guarded: the extension installs itself there, so if it is missing someone removed or turned it off. And while a list has a single-page exception (like one YouTube channel), every browser without the extension is closed, because only the extension can keep the rest of that site blocked."],
       how: ["First turn on \"Install the extension permanently\" and check \"Browsers running now\": every browser you use should show Protected.",
         "Then turn this on. A browser that still shows \"Not filtered – will be closed\" will be closed while blocking."],
       note: "Can't be switched off while protection is on.",
@@ -261,7 +262,8 @@ export const HELP = {
     },
     private_windows: {
       t: "Block private (incognito) windows",
-      p: ["Disables Incognito / InPrivate windows in Chrome, Edge, Brave, Vivaldi and Firefox. Private windows are often where extensions don't run, so blocking them closes that gap."],
+      p: ["Disables Incognito / InPrivate windows in Chrome, Edge, Brave, Vivaldi and Firefox. Private windows are often where extensions don't run, so blocking them closes that gap.",
+        "On by default for new installs. While protection is on, the browsers' own \"secure DNS\" is also turned off, so every site name passes the block list (normal browsing is not affected)."],
       note: "Can't be switched off while protection is on.",
     },
     managed_ext: {
@@ -394,7 +396,7 @@ export const HELP = {
         "একটা পাতা বা চ্যানেল: youtube.com/@khanacademy (পাতা কাজ করে এক্সটেনশন থাকা ব্রাউজারে; পুরো সাইট সবখানে)",
         "অ্যাপ: minecraft.exe",
         "প্রতি লাইনে একটা। http://, www. আর শেষের / নিজে থেকে বাদ যায়।"],
-      note: "ব্যতিক্রম যোগ করলে লিস্ট দুর্বল হয়, তাই সুরক্ষা চালু থাকলে শুধু সরানো যায়, যোগ করা যায় না। সত্যিই দরকার হলে আগে সুরক্ষা কমান।",
+      note: "ব্যতিক্রম যোগ করলে লিস্ট দুর্বল হয়। তাই লিস্ট লক বা সুরক্ষা চালু থাকলে নতুন ব্যতিক্রম সাথে সাথে যোগ হয় না: এটা একটা অনুরোধ হয়ে যায়, আর অন্য যেকোনো ঢিলা করার মতো একই অপেক্ষার সময় শেষে যোগ হয় (সুরক্ষা → অনুরোধ)। ব্যতিক্রম সরানো সবসময় সাথে সাথে হয়।",
     },
     limit_days: {
       t: "কিছু দিনে আলাদা সময়",
@@ -535,7 +537,8 @@ export const HELP = {
     guard_browsers: {
       t: "যে ব্রাউজারে এক্সটেনশন কাজ করছে না তা বন্ধ করা",
       p: ["সাইটের অংশ (Shorts, Reels) আর শব্দ ব্লক হয় ব্রাউজারের ভেতরে, এক্সটেনশন দিয়ে। এই সুইচ ছাড়া কেউ এক্সটেনশন সরিয়ে বা এক্সটেনশন ছাড়া অন্য ব্রাউজারে গিয়ে এটা এড়াতে পারত।",
-        "চালু থাকলে কিছু ব্লক থাকা অবস্থায় যে সমর্থিত ব্রাউজারে এক্সটেনশন বসেনি বা কাজ করছে না, তা ৯০ সেকেন্ডের সতর্কতার পর বন্ধ হয়। যেখানে সম্ভব সেখানে এটা এক্সটেনশন নিজে থেকে বসিয়েও দেয়।"],
+        "চালু থাকলে কিছু ব্লক থাকা অবস্থায় যে সমর্থিত ব্রাউজারে এক্সটেনশন বসেনি বা কাজ করছে না, তা ৯০ সেকেন্ডের সতর্কতার পর বন্ধ হয়। যেখানে সম্ভব সেখানে এটা এক্সটেনশন নিজে থেকে বসিয়েও দেয়।",
+        "এই সুইচ বন্ধ থাকলেও Chrome, Brave, Vivaldi আর Chromium সবসময় পাহারায় থাকে: সেখানে এক্সটেনশন নিজে বসে, তাই না থাকলে বুঝতে হবে কেউ সরিয়েছে বা বন্ধ করেছে। আর কোনো লিস্টে একটা পাতার ব্যতিক্রম (যেমন একটা YouTube চ্যানেল) থাকলে, এক্সটেনশন ছাড়া সব ব্রাউজার বন্ধ হয়, কারণ সেই সাইটের বাকিটা শুধু এক্সটেনশনই ব্লক রাখতে পারে।"],
       how: ["আগে \"এক্সটেনশন স্থায়ীভাবে বসানো\" চালু করে \"এখন চলা ব্রাউজার\" দেখুন: যে ব্রাউজার ব্যবহার করেন সবগুলোতে \"সুরক্ষিত\" দেখাতে হবে।",
         "তারপর এটা চালু করুন। যে ব্রাউজারে তখনো \"ফিল্টার হচ্ছে না – বন্ধ হবে\" দেখায়, ব্লকের সময় সেটা বন্ধ হবে।"],
       note: "সুরক্ষা চালু থাকলে বন্ধ করা যায় না।",
@@ -551,7 +554,8 @@ export const HELP = {
     },
     private_windows: {
       t: "প্রাইভেট (ইনকগনিটো) উইন্ডো বন্ধ",
-      p: ["Chrome, Edge, Brave, Vivaldi আর Firefox-এ Incognito / InPrivate উইন্ডো বন্ধ করে দেয়। প্রাইভেট উইন্ডোতে প্রায়ই এক্সটেনশন চলে না, তাই এটা বন্ধ করলে সেই ফাঁকটাও বন্ধ হয়।"],
+      p: ["Chrome, Edge, Brave, Vivaldi আর Firefox-এ Incognito / InPrivate উইন্ডো বন্ধ করে দেয়। প্রাইভেট উইন্ডোতে প্রায়ই এক্সটেনশন চলে না, তাই এটা বন্ধ করলে সেই ফাঁকটাও বন্ধ হয়।",
+        "নতুন ইনস্টলে শুরু থেকেই চালু। সুরক্ষা চালু থাকলে ব্রাউজারের নিজস্ব \"secure DNS\"-ও বন্ধ থাকে, যাতে প্রতিটা সাইটের নাম ব্লক লিস্ট পেরিয়ে যায় (সাধারণ ব্রাউজিংয়ে কোনো প্রভাব নেই)।"],
       note: "সুরক্ষা চালু থাকলে বন্ধ করা যায় না।",
     },
     managed_ext: {

@@ -1,7 +1,7 @@
 // Block lists, schedules and daily limits.
 import { tip } from "/help.js";
 import { pickerHTML, mountPicker, ensureTargetList } from "/picker.js";
-import { S, $, $$, t, presetName, addPreset, num, esc, api, act, cfg, fmtDur, openModal, closeModal, saveConfig, toast, lines, newId, isLocked, listName, minToHHMM, hhmmToMin } from "/core.js";
+import { S, $, $$, t, presetName, addPreset, num, esc, api, act, cfg, fmtDur, fmtTime, openModal, closeModal, saveConfig, toast, lines, newId, isLocked, listName, minToHHMM, hhmmToMin } from "/core.js";
 
 const lockBadge = (on) => (on ? `<span class="badge lock">🔒 ${t("locked")}</span>` : "");
 /** A schedule/limit that can only be tightened: locked itself, or enabled while protection is on. */
@@ -53,9 +53,13 @@ function editList(list) {
        <label>${t("apps")} ${tip("list_apps")}<span class="hint">${t("apps_hint")}</span><textarea id="l-apps">${esc(l.apps.join("\n"))}</textarea></label>
        <label>${t("keywords")} ${tip("list_keywords")}<textarea id="l-keywords">${esc(l.keywords.join("\n"))}</textarea></label>
        <label class="check"><input type="checkbox" id="l-allow" ${l.allowlist_mode ? "checked" : ""} ${locked ? "disabled" : ""}>${t("allowlist_mode")} ${tip("allowlist")}</label>`;
+  const waiting = S.status.requests
+    .filter((r) => r.kind.type === "add_exceptions" && r.kind.list_id === l.id && ["needs_challenge", "pending", "approved"].includes(r.status))
+    .map((r) => `<p class="hint">⏳ ${esc([...r.kind.sites, ...r.kind.apps].join(", "))} — ${r.available_at && r.status === "pending" ? `${t("available_at")}: ${esc(fmtTime(r.available_at))}` : t(`st_${r.status}`)}</p>`)
+    .join("");
   const allowBox = l.allowlist_mode ? "" : `
-     <label>${t("allow_exceptions")} ${tip("allow_exceptions")}<span class="hint">${t(locked ? "allow_locked_note" : "allow_hint")}</span>
-       <textarea id="l-allowed" placeholder="youtube.com/@khanacademy&#10;mail.google.com&#10;minecraft.exe">${esc(allowedText(l))}</textarea></label>`;
+     <label>${t("allow_exceptions")} ${tip("allow_exceptions")}<span class="hint">${t(locked ? "allow_locked_note" : "allow_hint")} ${t("allow_page_note")}</span>
+       <textarea id="l-allowed" placeholder="youtube.com/@khanacademy&#10;mail.google.com&#10;minecraft.exe">${esc(allowedText(l))}</textarea></label>${waiting}`;
   openModal(
     `<h2>${isNew ? t("add_list") : esc(l.name)}</h2>
      ${locked ? `<div class="banner warn">${t("list_locked_note")}</div>` : ""}
@@ -67,7 +71,16 @@ function editList(list) {
     (m) => {
       $("#l-save", m).addEventListener("click", async () => {
         const allowed = $("#l-allowed", m) ? splitAllowed($("#l-allowed", m).value) : { sites: l.allow_sites || [], apps: l.allow_apps || [] };
-        const exceptions = { allow_sites: allowed.sites, allow_apps: allowed.apps };
+        // A locked list can't be loosened at once: new exceptions become a
+        // protection request (same waiting time as other loosening); removing works now.
+        const has = (list, v) => (list || []).some((x) => x.toLowerCase() === v.toLowerCase());
+        const added = locked
+          ? { sites: allowed.sites.filter((v) => !has(l.allow_sites, v)), apps: allowed.apps.filter((v) => !has(l.allow_apps, v)) }
+          : { sites: [], apps: [] };
+        const exceptions = {
+          allow_sites: allowed.sites.filter((v) => !has(added.sites, v)),
+          allow_apps: allowed.apps.filter((v) => !has(added.apps, v)),
+        };
         const updated = hidden
           ? {
               ...l,
@@ -87,12 +100,21 @@ function editList(list) {
               always_on: $("#l-always", m).checked,
               ...exceptions,
             };
+        const needsRequest = added.sites.length + added.apps.length > 0;
         const ok = await saveConfig((c) => {
           const i = c.block_lists.findIndex((b) => b.id === l.id);
           if (i >= 0) c.block_lists[i] = updated;
           else c.block_lists.push(updated);
-        });
-        if (ok === true) closeModal();
+        }, needsRequest ? null : undefined);
+        if (ok !== true) return;
+        if (needsRequest) {
+          const done = await act(
+            () => api("POST", "/api/requests", { kind: { type: "add_exceptions", list_id: l.id, sites: added.sites, apps: added.apps } }),
+            t("exceptions_requested"),
+          );
+          if (!done) return;
+        }
+        closeModal();
       });
     },
   );

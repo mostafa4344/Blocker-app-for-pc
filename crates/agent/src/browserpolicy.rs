@@ -181,6 +181,28 @@ pub fn set_private_windows_blocked(blocked: bool) {
     let _ = blocked;
 }
 
+/// Browsers' own "secure DNS" (DNS over HTTPS) is turned off while
+/// protection is on, so name lookups always go through Windows, where the
+/// blocked-sites list and SafeSearch apply. Chromium value: "off".
+pub const SECURE_DNS_POLICY: &str = "DnsOverHttpsMode";
+
+pub fn set_secure_dns_off(off: bool) {
+    #[cfg(target_os = "windows")]
+    windows::set_secure_dns(off);
+    #[cfg(not(target_os = "windows"))]
+    let _ = off;
+}
+
+/// Lets the service start in Windows Safe Mode too, so restarting into Safe
+/// Mode is not a way around blocking. (Standard registration under
+/// `Control\SafeBoot`, also used by security and parental-control software.)
+pub fn set_safe_mode_start(on: bool) {
+    #[cfg(target_os = "windows")]
+    windows::set_safe_boot(on);
+    #[cfg(not(target_os = "windows"))]
+    let _ = on;
+}
+
 #[cfg(target_os = "windows")]
 mod windows {
     use super::{Identity, CHROMIUM_TARGETS};
@@ -259,6 +281,88 @@ mod windows {
                 reg(&["add", &key, "/v", value, "/t", "REG_DWORD", "/d", &d, "/f"]);
             } else if !blocked && current.is_some() {
                 reg(&["delete", &key, "/v", value, "/f"]);
+            }
+        }
+    }
+
+    pub fn set_secure_dns(off: bool) {
+        for (_, product, _) in CHROMIUM_TARGETS {
+            let key = format!(r"HKLM\SOFTWARE\Policies\{product}");
+            let current = read_sz(&key, super::SECURE_DNS_POLICY);
+            if off && current.as_deref() != Some("off") {
+                reg(&[
+                    "add",
+                    &key,
+                    "/v",
+                    super::SECURE_DNS_POLICY,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    "off",
+                    "/f",
+                ]);
+            } else if !off && current.is_some() {
+                reg(&["delete", &key, "/v", super::SECURE_DNS_POLICY, "/f"]);
+            }
+        }
+        let ff = r"HKLM\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS";
+        let current = read_dword(ff, "Enabled");
+        if off && (current != Some(0) || read_dword(ff, "Locked") != Some(1)) {
+            reg(&[
+                "add",
+                ff,
+                "/v",
+                "Enabled",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "0",
+                "/f",
+            ]);
+            reg(&[
+                "add",
+                ff,
+                "/v",
+                "Locked",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "1",
+                "/f",
+            ]);
+        } else if !off && current.is_some() {
+            reg(&["delete", ff, "/f"]);
+        }
+    }
+
+    fn read_sz(path: &str, value: &str) -> Option<String> {
+        let out = Command::new("reg")
+            .args(["query", path, "/v", value])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().find(|l| l.contains(value))?;
+        line.split("REG_SZ").nth(1).map(|s| s.trim().to_string())
+    }
+
+    pub fn set_safe_boot(on: bool) {
+        for mode in ["Minimal", "Network"] {
+            let key = format!(
+                r"HKLM\SYSTEM\CurrentControlSet\Control\SafeBoot\{mode}\{}",
+                crate::service::SERVICE_NAME
+            );
+            let present = Command::new("reg")
+                .args(["query", &key, "/ve"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .is_ok_and(|o| {
+                    o.status.success() && String::from_utf8_lossy(&o.stdout).contains("Service")
+                });
+            if on && !present {
+                reg(&["add", &key, "/ve", "/t", "REG_SZ", "/d", "Service", "/f"]);
+            } else if !on {
+                reg(&["delete", &key, "/f"]);
             }
         }
     }

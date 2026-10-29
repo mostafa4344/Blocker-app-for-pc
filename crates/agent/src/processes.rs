@@ -214,6 +214,9 @@ pub fn is_protected(name: &str) -> bool {
 pub struct Proc {
     pub pid: Pid,
     pub name: String,
+    /// The program's original file name from its version information, when
+    /// the file was renamed (e.g. `chrome.exe` copied as `notes.exe`).
+    pub original: Option<String>,
     /// Seconds since the Unix epoch.
     pub start_time: u64,
 }
@@ -224,6 +227,88 @@ pub struct Watcher {
     own_pid: Option<Pid>,
     /// Program path -> whether it is a Tor Browser binary (cached).
     tor_paths: std::collections::HashMap<std::path::PathBuf, bool>,
+    /// Program path -> original file name from its version information (cached).
+    originals: std::collections::HashMap<std::path::PathBuf, Option<String>>,
+}
+
+/// What a renamed program really is: browsers are recognised by their
+/// original file name, so renaming `chrome.exe` doesn't dodge browser rules.
+pub fn effective_name(actual: &str, original: Option<&str>) -> String {
+    match original {
+        Some(o)
+            if browser_support(actual) == BrowserSupport::NotBrowser
+                && browser_support(o) != BrowserSupport::NotBrowser =>
+        {
+            o.to_string()
+        }
+        _ => actual.to_string(),
+    }
+}
+
+/// `OriginalFilename` from a Windows program's version information.
+#[cfg(windows)]
+fn original_filename(path: &std::path::Path) -> Option<String> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "version")]
+    extern "system" {
+        fn GetFileVersionInfoSizeW(file: *const u16, handle: *mut u32) -> u32;
+        fn GetFileVersionInfoW(file: *const u16, handle: u32, len: u32, data: *mut u8) -> i32;
+        fn VerQueryValueW(
+            block: *const u8,
+            sub: *const u16,
+            buf: *mut *mut u8,
+            len: *mut u32,
+        ) -> i32;
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: Win32 calls with buffers that stay alive for the whole block;
+    // returned pointers point into `data` and are read within its length.
+    unsafe {
+        let mut handle = 0u32;
+        let size = GetFileVersionInfoSizeW(wide.as_ptr(), &mut handle);
+        if size == 0 || size > 4 << 20 {
+            return None;
+        }
+        let mut data = vec![0u8; size as usize];
+        if GetFileVersionInfoW(wide.as_ptr(), 0, size, data.as_mut_ptr()) == 0 {
+            return None;
+        }
+        let query = |sub: &str| -> Option<(*mut u8, u32)> {
+            let w: Vec<u16> = sub.encode_utf16().chain(Some(0)).collect();
+            let mut ptr: *mut u8 = std::ptr::null_mut();
+            let mut len = 0u32;
+            (VerQueryValueW(data.as_ptr(), w.as_ptr(), &mut ptr, &mut len) != 0
+                && !ptr.is_null()
+                && len > 0)
+                .then_some((ptr, len))
+        };
+        let mut langs: Vec<(u16, u16)> = Vec::new();
+        if let Some((ptr, len)) = query(r"\VarFileInfo\Translation") {
+            let pairs = std::slice::from_raw_parts(ptr as *const u16, (len / 2) as usize);
+            langs.extend(pairs.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])));
+        }
+        langs.extend([(0x0409, 0x04b0), (0x0409, 0x04e4), (0x0000, 0x04b0)]);
+        for (lang, cp) in langs {
+            if let Some((ptr, len)) = query(&format!(
+                r"\StringFileInfo\{lang:04x}{cp:04x}\OriginalFilename"
+            )) {
+                let chars = std::slice::from_raw_parts(ptr as *const u16, len as usize);
+                let name = String::from_utf16_lossy(chars)
+                    .trim_end_matches('\0')
+                    .trim()
+                    .to_string();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+        None
+    }
+}
+
+#[cfg(not(windows))]
+fn original_filename(_path: &std::path::Path) -> Option<String> {
+    None
 }
 
 /// Name reported for a Tor Browser process, whatever its file is called.
@@ -244,6 +329,7 @@ impl Watcher {
             seen_names: HashSet::new(),
             own_pid: sysinfo::get_current_pid().ok(),
             tor_paths: std::collections::HashMap::new(),
+            originals: std::collections::HashMap::new(),
         }
     }
 
@@ -255,6 +341,7 @@ impl Watcher {
             ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
         );
         let tor_paths = &mut self.tor_paths;
+        let originals = &mut self.originals;
         let procs: Vec<Proc> = self
             .sys
             .processes()
@@ -266,13 +353,24 @@ impl Watcher {
                         .entry(exe.to_path_buf())
                         .or_insert_with(|| exe.parent().is_some_and(is_tor_browser_dir))
                 });
+                let actual = p.name().to_string_lossy().into_owned();
+                let original = p
+                    .exe()
+                    .and_then(|exe| {
+                        originals
+                            .entry(exe.to_path_buf())
+                            .or_insert_with(|| original_filename(exe))
+                            .clone()
+                    })
+                    .filter(|o| normalize_app(o) != normalize_app(&actual));
                 Proc {
                     pid: *pid,
                     name: if is_tor {
                         TOR_BROWSER_NAME.to_string()
                     } else {
-                        p.name().to_string_lossy().into_owned()
+                        effective_name(&actual, original.as_deref())
                     },
+                    original,
                     start_time: p.start_time(),
                 }
             })
@@ -280,6 +378,9 @@ impl Watcher {
         // Forget programs that are no longer running so the cache stays small.
         if self.tor_paths.len() > 4096 {
             self.tor_paths.clear();
+        }
+        if self.originals.len() > 4096 {
+            self.originals.clear();
         }
         let names: HashSet<String> = procs.iter().map(|p| normalize_app(&p.name)).collect();
         let new_names = names.difference(&self.seen_names).cloned().collect();
@@ -302,6 +403,42 @@ impl Watcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn original_name_survives_a_rename() {
+        let src = std::path::Path::new(
+            r"C:\Windows\System32
+otepad.exe",
+        );
+        if !src.is_file() {
+            return;
+        }
+        let copy = std::env::temp_dir().join(format!("cg-renamed-{}.exe", std::process::id()));
+        std::fs::copy(src, &copy).unwrap();
+        let original = original_filename(&copy).map(|o| normalize_app(&o));
+        let _ = std::fs::remove_file(&copy);
+        assert_eq!(original.as_deref(), Some("notepad"));
+    }
+
+    #[test]
+    fn renamed_browsers_are_still_browsers() {
+        assert_eq!(
+            effective_name("notes.exe", Some("chrome.exe")),
+            "chrome.exe"
+        );
+        assert_eq!(effective_name("x.exe", Some("tor.exe")), "tor.exe");
+        // Real names win, and ordinary apps keep their own name.
+        assert_eq!(
+            effective_name("msedge.exe", Some("chrome.exe")),
+            "msedge.exe"
+        );
+        assert_eq!(
+            effective_name("Discord.exe", Some("electron.exe")),
+            "Discord.exe"
+        );
+        assert_eq!(effective_name("notes.exe", None), "notes.exe");
+    }
 
     #[test]
     fn tor_browser_is_found_by_its_layout_not_its_name() {

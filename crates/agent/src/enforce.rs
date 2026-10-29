@@ -44,9 +44,16 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let mut applied_private: Option<bool> = None;
     let mut last_private_check = Instant::now();
     let mut closed_pids: HashSet<sysinfo::Pid> = HashSet::new();
+    // Browser (display name) -> when it started being "to be closed", so every
+    // browser always gets the full warning time, even one opened long ago.
+    let mut closing_since: std::collections::HashMap<&'static str, Instant> =
+        std::collections::HashMap::new();
     let mut last_save = Instant::now();
     let mut last_tick = Instant::now();
     let mut limit_warnings = crate::notify::LimitWarnings::default();
+    let mut applied_secure_dns: Option<bool> = None;
+    // Start in Safe Mode too, so rebooting into it doesn't lift blocking.
+    crate::browserpolicy::set_safe_mode_start(true);
 
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let tick_secs = last_tick.elapsed().as_secs().clamp(1, 10);
@@ -143,9 +150,18 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             // with the same cadence as the extension policy.
             let private = s.block_private_windows;
             let private_due = last_private_check.elapsed() >= POLICY_REASSERT;
-            if applied_private != Some(private) || (private && private_due) {
+            // The browsers' own secure DNS is off while protected (or with
+            // SafeSearch), so lookups always pass the hosts-file rules.
+            let dns_off = config.protection.level != contentguard_core::model::ProtectionLevel::Off
+                || s.force_safe_search;
+            if applied_private != Some(private)
+                || applied_secure_dns != Some(dns_off)
+                || ((private || dns_off) && private_due)
+            {
                 crate::browserpolicy::set_private_windows_blocked(private);
+                crate::browserpolicy::set_secure_dns_off(dns_off);
                 applied_private = Some(private);
+                applied_secure_dns = Some(dns_off);
                 last_private_check = Instant::now();
             }
         }
@@ -168,7 +184,15 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
         // can't be filtered at all (Tor...), which is safe to enable for everyone:
         // the extension can't be force-installed in every browser yet (Edge on
         // home PCs only takes Edge Add-ons extensions, Firefox needs AMO).
-        let guard_browsers = config.settings.require_browser_extension;
+        // Always guarded: browsers the extension is installed in automatically
+        // (Chrome, Brave, Vivaldi, Chromium): a missing extension there means it
+        // was removed or turned off. All browsers are guarded when the user asks
+        // for it, or while a page-level exception needs the extension.
+        let guard_all = config.settings.require_browser_extension || policy.needs_extension;
+        let auto_installed = |display: &str| {
+            config.settings.managed_extension
+                && matches!(display, "Chrome" | "Brave" | "Vivaldi" | "Chromium")
+        };
         let mut report: Vec<(&'static str, bool, bool)> = Vec::new();
         // Distinct browser brands running per engine family, to know whether an
         // old family-only extension report can be attributed to one browser.
@@ -182,8 +206,11 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                 }
             }
         }
+        let mut still_closing: Vec<&'static str> = Vec::new();
         for p in &procs {
-            let close_for_block = policy.app_blocked(&p.name);
+            // A renamed program is still matched by its original name.
+            let close_for_block = policy.app_blocked(&p.name)
+                || p.original.as_deref().is_some_and(|o| policy.app_blocked(o));
             let mut close_for_missing_extension = false;
             if let (Some((brand, display)), Some(family)) =
                 (browser_brand(&p.name), browser_family(&p.name))
@@ -193,9 +220,19 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
                     *ago < EXTENSION_GRACE_SECS && report_covers(k, brand, family, sole)
                 });
                 let running_for = now_epoch.saturating_sub(p.start_time);
-                close_for_missing_extension =
-                    guard_browsers && blocking && !protected && running_for > EXTENSION_GRACE_SECS;
-                let will_close = guard_browsers && blocking && !protected;
+                let guard = guard_all || auto_installed(display);
+                let will_close = guard && blocking && !protected;
+                if will_close {
+                    still_closing.push(display);
+                    let since = *closing_since.entry(display).or_insert_with(|| {
+                        let (title, body) =
+                            crate::notify::browser_text(&config.settings.language, display);
+                        crate::notify::show(&title, &body);
+                        Instant::now()
+                    });
+                    close_for_missing_extension = running_for > EXTENSION_GRACE_SECS
+                        && since.elapsed().as_secs() > EXTENSION_GRACE_SECS;
+                }
                 if !report.iter().any(|(d, _, _)| *d == display) {
                     report.push((display, protected, will_close));
                 }
@@ -212,6 +249,7 @@ pub fn run(app: Arc<App>, stop: Arc<std::sync::atomic::AtomicBool>) {
             }
         }
         closed_pids.retain(|pid| procs.iter().any(|p| &p.pid == pid));
+        closing_since.retain(|d, _| still_closing.contains(d));
         app.lock().browser_report = report
             .into_iter()
             .map(|(name, protected, closes)| {

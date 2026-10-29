@@ -63,6 +63,20 @@ pub fn limit_text(lang: &str, what: &str, remaining_secs: u64) -> (String, Strin
     (title, body)
 }
 
+/// Heads-up before a browser without a working extension is closed.
+pub fn browser_text(lang: &str, browser: &str) -> (String, String) {
+    let title = "HTL Content Guard".to_string();
+    let body = match lang {
+        "bn" => format!("{browser} ৯০ সেকেন্ড পর বন্ধ হবে, কারণ এতে ফিল্টার এক্সটেনশন চলছে না। কাজ সেভ করে নিন, অথবা এক্সটেনশন আছে এমন ব্রাউজার ব্যবহার করুন।"),
+        "ar" => format!("سيُغلق {browser} بعد 90 ثانية لأن إضافة التصفية لا تعمل فيه. احفظ عملك أو استخدم متصفحًا فيه الإضافة."),
+        "ur" => format!("{browser} 90 سیکنڈ بعد بند ہو جائے گا کیونکہ اس میں فلٹر ایکسٹینشن نہیں چل رہا۔ اپنا کام محفوظ کریں یا ایکسٹینشن والا براؤزر استعمال کریں۔"),
+        "id" => format!("{browser} akan ditutup dalam 90 detik karena ekstensi filter tidak berjalan di sana. Simpan pekerjaan Anda, atau gunakan browser yang ada ekstensinya."),
+        "tr" => format!("{browser} 90 saniye sonra kapanacak çünkü filtre uzantısı onda çalışmıyor. İşinizi kaydedin ya da uzantılı bir tarayıcı kullanın."),
+        _ => format!("{browser} will close in 90 seconds because the filter extension isn't running in it. Save your work, or use a browser that has the extension."),
+    };
+    (title, body)
+}
+
 fn bn_digits(n: u64) -> String {
     n.to_string()
         .chars()
@@ -155,5 +169,8 @@ mod tests {
             .contains("5 minutes left"));
         assert!(limit_text("en", "YouTube", 50).1.contains("1 minute left"));
         assert!(limit_text("bn", "YouTube", 300).1.contains("৫ মিনিট"));
+        assert!(browser_text("en", "Edge")
+            .1
+            .starts_with("Edge will close in 90 seconds"));
     }
 }
