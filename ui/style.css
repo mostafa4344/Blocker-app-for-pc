@@ -208,3 +208,21 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .day-minutes input { text-align: center; padding: 6px 2px; }
 .day-minutes .hint { grid-column: 1 / -1; margin: 0; }
 @media (max-width: 480px) { .day-minutes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Week view of schedules */
+:root { --wk-0: #4f6bed; --wk-1: #e8833a; --wk-2: #2f9e6e; --wk-3: #c2489a; --wk-4: #8a63d2; --wk-5: #c9a227; }
+@media (prefers-color-scheme: dark) { :root { --wk-0: #7d93ff; --wk-1: #f2a066; --wk-2: #4fc493; --wk-3: #e57ac0; --wk-4: #ad8cf0; --wk-5: #e0c050; } }
+.week-card { margin-bottom: 16px; display: grid; gap: 6px; }
+.wk-row, .wk-hours { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 8px; }
+.wk-day { font-size: 13px; color: var(--muted); }
+.wk-row.today .wk-day { color: var(--text); font-weight: 600; }
+.wk-track { position: relative; height: 16px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.wk-seg { position: absolute; top: 0; bottom: 0; opacity: .85; }
+.wk-now { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+.wk-hours > div { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
+.wk-hours > div span { position: absolute; transform: translateX(-50%); }
+.wk-hours > div span:first-child { transform: none; }
+.wk-hours > div span:last-child { transform: translateX(-100%); }
+.wk-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin-top: 4px; }
+.wk-key { display: inline-flex; align-items: center; gap: 6px; }
+.wk-key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }

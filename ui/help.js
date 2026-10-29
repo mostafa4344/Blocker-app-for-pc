@@ -113,6 +113,13 @@ export const HELP = {
         "Five minutes before today's time runs out, a small message tells you, so you can save your work or finish the video."],
       note: "While the limit is locked or protection is on, a day's time can only be lowered, not raised.",
     },
+    week_view: {
+      t: "Your week",
+      p: ["Every active schedule drawn on one week, so you can see at a glance when each list is blocked. Each list has its own color; the line on today's row is now.",
+        "A schedule that goes past midnight (for example bedtime 23:00-06:00) continues on the next day's row."],
+      how: ["Hold the mouse over a colored bar to see the list and its times.",
+        "To start fast, press \"New schedule\" and pick a ready choice: Work hours, School hours, Study evening, Bedtime or All day. You can still change the days and times."],
+    },
     hidden_list: {
       t: "Why this list is hidden",
       p: ["For sensitive topics, seeing the list of sites can itself pull you back. So the app shows only how many items it contains, never the items themselves.",
@@ -395,6 +402,13 @@ export const HELP = {
       how: ["\"কিছু দিনে আলাদা সময়\" টিক দিয়ে যে দিনগুলো চান বদলান। বাকি দিনে দৈনিক মিনিটই থাকবে।",
         "আজকের সময় শেষ হওয়ার ৫ মিনিট আগে একটা ছোট বার্তা জানিয়ে দেবে, যাতে কাজ সেভ করতে বা ভিডিও শেষ করতে পারেন।"],
       note: "সীমা লক থাকলে বা সুরক্ষা চালু থাকলে কোনো দিনের সময় শুধু কমানো যায়, বাড়ানো যায় না।",
+    },
+    week_view: {
+      t: "আপনার সপ্তাহ",
+      p: ["চালু থাকা সব সময়সূচি এক সপ্তাহের ছবিতে, যাতে এক নজরে বোঝা যায় কোন লিস্ট কখন ব্লক। প্রতিটা লিস্টের আলাদা রং; আজকের সারির দাগটা এখনকার সময়।",
+        "যে সময়সূচি মাঝরাত পেরোয় (যেমন ঘুমের সময় রাত ১১টা–সকাল ৬টা), সেটা পরের দিনের সারিতে চলতে থাকে।"],
+      how: ["রঙিন দাগের ওপর মাউস রাখলে লিস্ট আর সময় দেখাবে।",
+        "দ্রুত শুরু করতে \"নতুন সময়সূচি\" চেপে একটা তৈরি অপশন বাছুন: অফিস সময়, স্কুল সময়, সন্ধ্যার পড়া, ঘুমের সময় বা সারাদিন। পরে দিন আর সময় বদলানো যায়।"],
     },
     hidden_list: {
       t: "লিস্টটা কেন লুকানো",

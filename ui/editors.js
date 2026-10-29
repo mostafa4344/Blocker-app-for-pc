@@ -171,6 +171,65 @@ function listOptions(selected) {
   return cfg().block_lists.filter((l) => !l.always_on || l.id === selected).map((l) => `<option value="${esc(l.id)}" ${l.id === selected ? "selected" : ""}>${esc(l.name)}</option>`).join("");
 }
 
+/** Working days: Sunday-Thursday where that is the custom (Bangladesh, Gulf), else Monday-Friday. */
+const workDays = () => (["bn", "ar"].includes(cfg().settings.language) ? [0, 1, 2, 3, 6] : [0, 1, 2, 3, 4]);
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+/** One-tap starting points for a new schedule (days and times stay editable). */
+const TEMPLATES = [
+  { id: "work", days: workDays, start: 9 * 60, end: 17 * 60 },
+  { id: "school", days: workDays, start: 8 * 60, end: 15 * 60 },
+  { id: "study", days: () => EVERY_DAY, start: 18 * 60, end: 21 * 60 },
+  { id: "bedtime", days: () => EVERY_DAY, start: 23 * 60, end: 6 * 60 },
+  { id: "allday", days: () => EVERY_DAY, start: 0, end: 0 },
+];
+
+/** Time range text; equal start and end means the whole day. */
+const rangeText = (s) => (s.start_minute === s.end_minute ? t("all_day") : `${num(minToHHMM(s.start_minute))}–${num(minToHHMM(s.end_minute))}`);
+
+/** Pieces of a schedule on the week grid: [day, fromMinute, toMinute]; overnight windows continue next day. */
+export function weekSegments(s) {
+  const out = [];
+  for (const d of s.days) {
+    if (s.start_minute === s.end_minute) out.push([d, 0, 1440]);
+    else if (s.start_minute < s.end_minute) out.push([d, s.start_minute, s.end_minute]);
+    else {
+      out.push([d, s.start_minute, 1440]);
+      if (s.end_minute > 0) out.push([(d + 1) % 7, 0, s.end_minute]);
+    }
+  }
+  return out;
+}
+
+function weekView(items) {
+  const active = items.filter((s) => s.enabled && s.days.length);
+  if (!active.length) return "";
+  const lists = [...new Set(active.map((s) => s.block_list_id))];
+  const color = (id) => `var(--wk-${lists.indexOf(id) % 6})`;
+  const now = new Date();
+  const today = (now.getDay() + 6) % 7;
+  const nowPct = ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100;
+  const names = t("day_names");
+  const rows = names.map((n, d) => {
+    const segs = active.flatMap((s) => weekSegments(s).filter((x) => x[0] === d).map((x) => {
+      const label = `${listName(s.block_list_id)} · ${num(minToHHMM(x[1]))}–${num(minToHHMM(x[2] % 1440))}`;
+      return `<span class="wk-seg" data-x="${(x[1] / 1440) * 100}" data-wd="${((x[2] - x[1]) / 1440) * 100}" data-c="${color(s.block_list_id)}" title="${esc(label)}"></span>`;
+    })).join("");
+    return `<div class="wk-row${d === today ? " today" : ""}"><span class="wk-day">${esc(n)}</span><div class="wk-track">${segs}${d === today ? `<span class="wk-now" data-x="${nowPct}"></span>` : ""}</div></div>`;
+  }).join("");
+  const hours = [0, 6, 12, 18, 24].map((h) => `<span data-x="${(h / 24) * 100}">${num(String(h).padStart(2, "0"))}</span>`).join("");
+  const legend = lists.map((id) => `<span class="wk-key"><i data-c="${color(id)}"></i>${esc(listName(id))}</span>`).join("");
+  return `<div class="card week-card"><div class="row"><strong>${t("week_view")}</strong>${tip("week_view")}</div>
+    <div class="wk-hours"><span class="wk-day"></span><div>${hours}</div></div>${rows}
+    <div class="wk-legend">${legend}</div></div>`;
+}
+
+/** Positions and colors come from data-* (the page's security policy blocks inline styles). */
+function applyWeek(root) {
+  $$(".week-card [data-x]", root).forEach((el) => (el.style.insetInlineStart = `${el.dataset.x}%`));
+  $$(".week-card [data-wd]", root).forEach((el) => (el.style.width = `${el.dataset.wd}%`));
+  $$(".week-card [data-c]", root).forEach((el) => (el.style.background = el.dataset.c));
+}
+
 function daysSummary(days) {
   if (days.length === 7) return t("weekdays_all");
   const names = t("day_names");
@@ -186,6 +245,7 @@ function editSchedule(sched) {
      ${!isNew && guardedItem(s) ? `<div class="banner warn">${t("lock_schedule")}</div>` : ""}
      <label>${t("choose_list")}<select id="s-list" ${!isNew && guardedItem(s) ? "disabled" : ""}>${listOptions(s.block_list_id)}</select></label>
      ${targetPickerRow("s-list", !isNew && guardedItem(s))}
+     ${isNew ? `<div class="stack"><span class="hint">${t("templates")}</span><div class="chips">${TEMPLATES.map((x) => `<button type="button" class="chip ghost" data-template="${x.id}">${t(`tpl_${x.id}`)}</button>`).join("")}</div></div>` : ""}
      <div class="stack"><span class="hint">${t("days")}</span><div class="chips">${names.map((n, i) => `<button class="chip" data-day="${i}" aria-pressed="${s.days.includes(i)}">${n}</button>`).join("")}</div></div>
      <div class="grid two"><label>${t("start_time")} ${tip("schedule_times")}<input type="time" id="s-start" value="${minToHHMM(s.start_minute)}"></label>
        <label>${t("end_time")}<input type="time" id="s-end" value="${minToHHMM(s.end_minute)}"></label></div>
@@ -199,8 +259,18 @@ function editSchedule(sched) {
         days.has(d) ? days.delete(d) : days.add(d);
         b.setAttribute("aria-pressed", days.has(d));
       }));
+      $$("[data-template]", m).forEach((b) => b.addEventListener("click", () => {
+        const x = TEMPLATES.find((y) => y.id === b.dataset.template);
+        days.clear();
+        x.days().forEach((d) => days.add(d));
+        $$("[data-day]", m).forEach((c) => c.setAttribute("aria-pressed", days.has(Number(c.dataset.day))));
+        $("#s-start", m).value = minToHHMM(x.start);
+        $("#s-end", m).value = minToHHMM(x.end);
+        $$("[data-template]", m).forEach((c) => c.setAttribute("aria-pressed", c === b));
+      }));
       $("#s-save", m).addEventListener("click", async () => {
         if (!$("#s-list", m).value) return toast(t("pick_at_least_one"), true);
+        if (days.size === 0) return toast(t("err_pick_days"), true);
         const updated = {
           ...s,
           block_list_id: $("#s-list", m).value,
@@ -224,16 +294,18 @@ export function renderSchedules(main) {
   const items = cfg().schedules;
   main.innerHTML = `
     <div class="page-head"><div><h1>${t("schedules_title")} ${tip("schedules_overview")}</h1><p class="muted">${t("schedules_intro")}</p></div><button class="btn primary" id="add">+ ${t("add_schedule")}</button></div>
+    ${weekView(items)}
     <div class="list">${items.length === 0 ? `<p class="muted">${t("no_schedules")}</p>` : items.map((s) => `
       <div class="item">
         <div><div class="row"><strong>${esc(listName(s.block_list_id))}</strong>${lockBadge(guardedItem(s))}</div>
-          <div class="meta">${daysSummary(s.days)} · ${num(minToHHMM(s.start_minute))}–${num(minToHHMM(s.end_minute))}</div></div>
+          <div class="meta">${daysSummary(s.days)} · ${rangeText(s)}</div></div>
         <div class="row">
           <label class="check"><input type="checkbox" data-toggle="${esc(s.id)}" ${s.enabled ? "checked" : ""} ${guardedItem(s) ? "disabled" : ""}>${t("enabled")}</label>
           <button class="btn small" data-edit="${esc(s.id)}">${t("edit")}</button>
           ${guardedItem(s) ? "" : `<button class="btn small danger" data-del="${esc(s.id)}">${t("delete")}</button>`}
         </div>
       </div>`).join("")}</div>`;
+  applyWeek(main);
   $("#add", main).addEventListener("click", () => editSchedule(null));
   $$("[data-edit]", main).forEach((b) => b.addEventListener("click", () => editSchedule(items.find((x) => x.id === b.dataset.edit))));
   $$("[data-toggle]", main).forEach((b) => b.addEventListener("change", () => saveConfig((c) => {
