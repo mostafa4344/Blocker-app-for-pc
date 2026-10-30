@@ -98,18 +98,11 @@
   <div class="card">
     <h2>3) Submit your details</h2>
     <form id="form">
-      <label>Your name</label>
-      <input id="name" required maxlength="120" autocomplete="name">
-
       <label>Device ID (bottom of the app's Premium page)</label>
       <input id="install_id" required maxlength="128" placeholder="cg1... / xxxxxxxx" autocomplete="off" spellcheck="false">
 
       <label>Plan</label>
-      <select id="plan">
-        <option value="monthly">Monthly</option>
-        <option value="yearly">Yearly</option>
-        <option value="lifetime" selected>Lifetime</option>
-      </select>
+      <select id="plan" required></select>
 
       <label>Paid with</label>
       <select id="method">
@@ -119,10 +112,10 @@
       </select>
 
       <label>Transaction ID (TrxID)</label>
-      <input id="txn_id" required maxlength="80" placeholder="e.g. 9FG7XXXX" autocomplete="off" spellcheck="false">
+      <input id="txn_id" required maxlength="40" placeholder="e.g. 9FG7XXXX" autocomplete="off" spellcheck="false">
 
       <label>Email / phone (optional — to send your code)</label>
-      <input id="contact" maxlength="200" autocomplete="email">
+      <input id="contact" maxlength="120" autocomplete="email">
 
       <button class="btn" id="submit" type="submit">Submit request</button>
       <div class="note" id="ok"></div>
@@ -158,11 +151,8 @@ const CONFIG = {
     SANDBOX: false,            // true while testing with a sandbox account
     PRICE_IDS: { monthly: "", yearly: "", lifetime: "" },   // <-- Paddle price ids (pri_...)
   },
-  PRICES: {                    // <-- edit prices freely
-    monthly:  { label:"Monthly",  price:"BDT 199",  per:"per month" },
-    yearly:   { label:"Yearly",   price:"BDT 999",  per:"per year", best:true },
-    lifetime: { label:"Lifetime", price:"BDT 1999", per:"one-time" },
-  },
+  // Plans and prices are NOT set here: they come from Supabase -> Table
+  // Editor -> plans, exactly what the app shows.
 };
 // ======================
 
@@ -182,54 +172,89 @@ $$(".copy").forEach(b => b.onclick = () => {
   const o = b.textContent; b.textContent = "Copied ✓"; setTimeout(()=>b.textContent=o, 1200);
 });
 
-let selectedPlan = "lifetime";
+const rpc = async (fn, body) => {
+  const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      "apikey": CONFIG.SUPABASE_KEY,
+      "Authorization": "Bearer " + CONFIG.SUPABASE_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+  return data;
+};
+
+// Plan names and the "per" line, from the number of months.
+const planName = (p) => p.name || (p.months == null ? "Lifetime" : p.months === 1 ? "Monthly"
+  : p.months === 12 ? "Yearly" : `${p.months} months`);
+const planPer = (p) => p.months == null ? "one-time" : p.months === 1 ? "1 month"
+  : p.months === 12 ? "1 year" : `${p.months} months`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let plans = [];
+let selectedPlan = "";
 function renderPlans(){
   const box = $("#plans"); box.innerHTML = "";
-  for (const [key, p] of Object.entries(CONFIG.PRICES)){
+  if (!plans.length) {
+    box.innerHTML = `<p class="muted">Prices couldn't be loaded. Open the app's <b>Premium</b> page to see them, or try again later.</p>`;
+    return;
+  }
+  for (const p of plans){
     const el = document.createElement("button");
     el.type = "button"; el.className = "plan";
-    el.setAttribute("aria-pressed", key===selectedPlan);
-    el.innerHTML = `<div class="name">${p.label}</div>
-      <div class="price">${p.price}</div>
-      <div class="per">${p.per}</div>
-      ${p.best?`<div class="badge">Popular</div>`:""}`;
-    el.onclick = () => { selectedPlan = key; $("#plan").value = key; renderPlans(); };
+    el.setAttribute("aria-pressed", p.code === selectedPlan);
+    el.innerHTML = `<div class="name">${esc(planName(p))}</div>
+      <div class="price">${esc(p.price)}</div>
+      <div class="per">${esc(planPer(p))}</div>
+      ${p.popular ? `<div class="badge">Popular</div>` : ""}`;
+    el.onclick = () => { selectedPlan = p.code; $("#plan").value = p.code; renderPlans(); };
     box.appendChild(el);
   }
 }
+function fillPlanSelect(){
+  $("#plan").innerHTML = plans.map((p) =>
+    `<option value="${esc(p.code)}">${esc(planName(p))} - ${esc(p.price)}</option>`).join("");
+  $("#plan").value = selectedPlan;
+}
 $("#plan").addEventListener("change", e => { selectedPlan = e.target.value; renderPlans(); });
+rpc("get_plans", {}).then((list) => {
+  plans = Array.isArray(list) ? list : [];
+  selectedPlan = (plans.find((p) => p.popular) || plans[0] || {}).code || "";
+}).catch(() => { plans = []; }).finally(() => { renderPlans(); fillPlanSelect(); });
+
+// Friendly text for the server's answers.
+function explain(msg){
+  if (/not registered/i.test(msg)) return "We can't find this Device ID. Copy it again from the bottom of the app's Premium page (the app must have been opened once with internet).";
+  if (/bad txn/i.test(msg)) return "Please check the Transaction ID (letters and numbers only, as in your payment message).";
+  if (/already used/i.test(msg)) return "This Transaction ID has already been used for a purchase.";
+  if (/too many pending/i.test(msg)) return "You already have several requests waiting. Please wait until we check them.";
+  if (/bad plan/i.test(msg)) return "Please choose a plan.";
+  return "Could not send. Check your connection and try again. (" + msg + ")";
+}
 
 $("#form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const ok = $("#ok"), bad = $("#bad"); ok.style.display = bad.style.display = "none";
   const btn = $("#submit"); btn.disabled = true;
-  const contact = $("#contact").value.trim();
+  // Same checks as the app: the device must exist, the plan must be on sale,
+  // a TrxID can't be reused, and a device can't flood the list.
   const payload = {
-    name: $("#name").value.trim(),
-    install_id: $("#install_id").value.trim(),
-    plan: $("#plan").value,
-    method: $("#method").value,
-    txn_id: $("#txn_id").value.trim(),
-    email: contact.includes("@") ? contact : null,
-    phone: contact && !contact.includes("@") ? contact : null,
+    p_install_id: $("#install_id").value.trim(),
+    p_plan: $("#plan").value,
+    p_method: $("#method").value,
+    p_txn_id: $("#txn_id").value.trim().replace(/\s+/g, ""),
+    p_contact: $("#contact").value.trim(),
   };
   try {
-    const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/purchase_requests`, {
-      method: "POST",
-      headers: {
-        "apikey": CONFIG.SUPABASE_KEY,
-        "Authorization": "Bearer " + CONFIG.SUPABASE_KEY,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()));
+    await rpc("submit_purchase_request", payload);
     ok.textContent = "✓ Request sent! Your Premium will be activated after we verify the payment.";
     ok.style.display = "block";
-    $("#form").reset(); selectedPlan = "lifetime"; renderPlans();
+    $("#txn_id").value = "";
   } catch (err) {
-    bad.textContent = "Could not send. Check your connection and try again. (" + err.message + ")";
+    bad.textContent = explain(err.message);
     bad.style.display = "block";
   } finally {
     btn.disabled = false;

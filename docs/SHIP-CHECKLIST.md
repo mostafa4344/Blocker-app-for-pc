@@ -1,5 +1,8 @@
 # Ship checklist — Content Guard
 
+> **Current status (1.6.0, 2026-10-30): see `docs/LAUNCH-1.6.0-AND-NEXT.md`.**
+> The list below is the original checklist, kept for history.
+
 What's DONE and verified in-repo vs. what needs your hardware/accounts.
 
 ## ✅ Done & tested (in this repo / CI)
