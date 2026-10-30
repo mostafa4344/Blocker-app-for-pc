@@ -209,9 +209,10 @@ export function renderLicense(main) {
         <div class="row between"><h2>${t("license_status_label")} ${tip("premium_status")}</h2>${statusBadge(st)}</div>
         ${st === "trial" ? `<p>${t("trial_days_left", { days: num(lic.status.days_left) })}</p>` : ""}
         ${st === "premium" ? `<p>✅ ${t("premium_active")} · ${t("premium_until_label")}: ${until}</p>` : ""}
-        ${st === "expired" ? `<p class="muted">${t("trial_expired")}</p>` : ""}
+        ${st === "expired" && !lic.device_mismatch ? `<p class="muted">${t("trial_expired")}</p>` : ""}
         ${st === "locked_offline" ? `<p class="muted">${t("locked_offline")}</p>` : ""}
-        ${lic.last_error && st !== "premium" ? `<small class="muted">${t("err_license_offline")}</small>` : ""}
+        ${lic.device_mismatch ? `<p class="banner danger">${t("err_license_device")}</p>` : ""}
+        ${lic.last_error && st !== "premium" && !lic.device_mismatch ? `<small class="muted">${t("err_license_offline")}</small>` : ""}
       </section>
       ${pending ? `<div class="banner info">⏳ ${t("request_pending", { plan: esc(codeLabel(pending.plan, plans)), trx: esc(pending.txn_id) })}</div>` : ""}
       ${buyCard}

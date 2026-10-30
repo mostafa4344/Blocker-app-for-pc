@@ -45,7 +45,13 @@ impl Store {
     pub fn save<T: Serialize>(&self, name: &str, value: &T) -> io::Result<()> {
         let tmp = self.path(&format!("{name}.tmp"));
         {
-            let mut f = fs::File::create(&tmp)?;
+            // A leftover temp file may have been planted by another account:
+            // remove it and create a fresh one (owned by us) instead of reusing it.
+            let _ = fs::remove_file(&tmp);
+            let mut f = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)?;
             f.write_all(&serde_json::to_vec_pretty(value).map_err(io::Error::other)?)?;
             f.sync_all()?;
         }

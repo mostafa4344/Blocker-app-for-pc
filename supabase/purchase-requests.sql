@@ -27,21 +27,8 @@ create index if not exists purchase_requests_status_idx
 
 alter table public.purchase_requests enable row level security;
 
--- Anonymous buyers may submit a request; the WITH CHECK keeps the shape sane.
+-- No direct table access for the app: requests come in only through
+-- submit_purchase_request() (see migrations/20261025070000_easy_premium.sql),
+-- which checks the device, the plan and spam limits.
 drop policy if exists "anon insert purchase requests" on public.purchase_requests;
-create policy "anon insert purchase requests"
-  on public.purchase_requests
-  for insert
-  to anon, authenticated
-  with check (
-    char_length(install_id) between 8 and 128
-    and char_length(name) between 1 and 120
-    and plan in ('monthly','yearly','lifetime')
-    and method in ('bkash','nagad','other')
-    and char_length(txn_id) between 3 and 80
-  );
-
--- No SELECT/UPDATE/DELETE policy for anon => reads are fully blocked.
--- Grant INSERT on only the buyer-facing columns (status stays 'pending').
-grant insert (install_id, name, email, phone, plan, method, txn_id)
-  on public.purchase_requests to anon, authenticated;
+revoke all on table public.purchase_requests from anon, authenticated;

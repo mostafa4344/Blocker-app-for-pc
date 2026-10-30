@@ -229,6 +229,7 @@ export default {
   err_duplicate: "Permintaan serupa sudah ada.",
   err_invalid_code: "Kode ini tidak valid atau sudah dipakai. Periksa ejaannya dan coba lagi.",
   err_license_offline: "Tidak bisa menghubungi server lisensi. Periksa koneksi internet dan coba lagi.",
+  err_license_device: "ID Perangkat ini tertaut ke komputer lain, jadi Premium tidak bisa aktif di sini. Jika Anda memasang ulang Windows atau aplikasi, kirim ID Perangkat di bawah ke dukungan dan kami akan memindahkan lisensi Anda ke komputer ini.",
   err_payment_required: "Menambah atau memperketat blokir memerlukan Premium.",
   confirm_delete: "Yakin ingin menghapus?",
   ob_welcome: "Selamat datang! Mari siapkan dalam satu menit",

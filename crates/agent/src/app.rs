@@ -140,11 +140,13 @@ impl App {
         // available.
         license.install_id = crate::fingerprint::resolve_install_id(&license.install_id);
         license.ensure_install_id();
-        // Start the trial immediately (and persist it) so the app is usable on
-        // first run before the backend is reached; the server corrects it on sync.
-        if license.trial_started.is_none() {
-            license.trial_started = Some(Utc::now());
-            let _ = store.save(LICENSE_FILE, &license);
+        // This computer's secret fingerprint: signed licenses must name it.
+        license.device_key = crate::devicekey::load_or_create(store.dir()).unwrap_or_default();
+        // Never verified by the server yet (first start, maybe offline): allow
+        // setting up for a short while; afterwards only a signed license counts.
+        if license.token.is_empty() {
+            license.provisional_until =
+                Some(Utc::now() + chrono::Duration::minutes(license::PROVISIONAL_MINUTES));
         }
         // Ready-made lists: the last copy from the server, else the built-ins.
         let cached: Vec<PresetDef> = store.load(PRESETS_FILE)?;
@@ -345,6 +347,7 @@ impl App {
                 "purchase_url": inner.license.purchase_url,
                 "pay": inner.license.pay,
                 "pending_purchase": inner.license.pending_purchase,
+                "device_mismatch": inner.license.device_mismatch,
             },
             "update": self.update_info(inner),
             "browsers": {
@@ -961,7 +964,7 @@ impl App {
         };
         let now = Utc::now();
         let health = self.health_report();
-        let mut res = if first {
+        let res = if first {
             license::register(&ep, &mut lic, VERSION, now)
         } else {
             license::refresh(&ep, &mut lic, now, VERSION, health)
@@ -978,13 +981,7 @@ impl App {
                 .as_ref()
                 .is_err_and(|e| e.starts_with(license::REJECTED))
         {
-            res = license::register(&ep, &mut lic, VERSION, now);
-        }
-        if res.is_err() && first {
-            // No network on first run: start the trial locally so the app is usable.
-            if lic.trial_started.is_none() {
-                lic.trial_started = Some(now);
-            }
+            let _ = license::register(&ep, &mut lic, VERSION, now);
         }
         let mut g = self.lock();
         // Preserve the install_id already in use.

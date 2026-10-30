@@ -140,11 +140,7 @@ grant execute on function public.redeem_code(text,text) to anon, authenticated;
 grant execute on function public.admin_grant_premium(text,int) to service_role;
 grant execute on function public.admin_create_code(text,int,text) to service_role;
 
--- ---- optional: a few test activation codes ---------------------------------
-insert into public.codes (code, days, note) values
-  ('PREMIUM-LIFETIME', null, 'test'),
-  ('PREMIUM-30D', 30, 'test'),
-  ('PREMIUM-365D', 365, 'test')
-on conflict (code) do nothing;
+-- Activation codes: create them with admin_create_code() (service role only),
+-- using long random codes. NEVER put real or test codes in this public file.
 
 -- Done. The app's built-in backend URL already points at this project.

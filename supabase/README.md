@@ -8,8 +8,12 @@ Open your Supabase project → **SQL editor** → paste the contents of
 That creates the `accounts` and `codes` tables (RLS on, no direct anon access),
 the public RPCs the app calls with the publishable key
 (`register_device`, `get_license`, `redeem_code`), and admin RPCs for a payment
-webhook (`admin_grant_premium`, `admin_create_code`, service-role only). It also
-inserts three test codes: `PREMIUM-LIFETIME`, `PREMIUM-30D`, `PREMIUM-365D`.
+webhook (`admin_grant_premium`, `admin_create_code`, service-role only). It
+inserts no activation codes (anything in this public repo is public).
+
+Since `20261030000000_signed_licenses.sql` the app calls `license_register`,
+`license_check` and `license_redeem`. Every answer carries a license token
+signed with a key kept in Supabase Vault; the app only trusts that signature.
 
 The desktop app already points at this project (URL + publishable key are the
 built-in defaults in `crates/agent/src/license.rs`), so nothing else is needed

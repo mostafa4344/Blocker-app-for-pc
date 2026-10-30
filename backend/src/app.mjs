@@ -1,9 +1,30 @@
 // Supabase-compatible licensing mock. Implements the same RPC endpoints the
-// agent calls on the real project: POST /rest/v1/rpc/{register_device,get_license,redeem_code}.
-// Business logic here mirrors the SQL functions in ../supabase/migrations.
+// agent calls on the real project: POST /rest/v1/rpc/{license_register,
+// license_check,license_redeem,...}. Business logic mirrors the SQL functions
+// in ../supabase/migrations (see 20261030000000_signed_licenses.sql).
+
+import crypto from "node:crypto";
 
 const MAX_BODY = 64 * 1024;
 const DAY = 86_400_000;
+
+// DEVELOPMENT signing key (public, fixed). The real key lives only in the
+// Supabase project; release builds of the agent never trust this one.
+const DEV_SEED = Buffer.alloc(32, 0x42);
+const DEV_KEY = crypto.createPrivateKey({
+  key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), DEV_SEED]),
+  format: "der",
+  type: "pkcs8",
+});
+export const DEV_PUBLIC_KEY_HEX = Buffer.from(crypto.createPublicKey(DEV_KEY).export({ format: "jwk" }).x, "base64url").toString("hex");
+const TOKEN_PREFIX = "htl-content-guard-license-v1\n";
+
+/** "<payload hex>.<signature hex>" exactly like SQL license_token(). */
+export function signToken(claims, key = DEV_KEY) {
+  const payload = Buffer.from(JSON.stringify(claims), "utf8");
+  const sig = crypto.sign(null, Buffer.concat([Buffer.from(TOKEN_PREFIX, "utf8"), payload]), key);
+  return `${payload.toString("hex")}.${sig.toString("hex")}`;
+}
 
 function licenseView(a) {
   return {
@@ -95,6 +116,53 @@ export function createApp({ store, apiKey = null, clock = Date.now, log = () => 
     return licenseView(a);
   }
 
+  // ---- signed licenses (SQL bind_device / signed_license / license_*) ----
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  function bindDevice(id, dk) {
+    if (!/^[0-9a-f]{64}$/.test(String(dk || ""))) throw bad("bad device key");
+    const a = store.account(String(id || ""));
+    if (!a) throw Object.assign(new Error("not registered"), { status: 404 });
+    if (!a.device_key) {
+      a.device_key = dk;
+      store.putAccount(a);
+    }
+    return a;
+  }
+  function signedLicense(a, dk, now) {
+    effective(a, now);
+    const same = a.device_key === dk;
+    return {
+      ...licenseView(a),
+      token: same
+        ? signToken({ v: 1, id: a.install_id, dk: a.device_key, plan: a.plan, trial_started: a.trial_started,
+            trial_days: a.trial_days, premium_until: a.premium_until, iat: new Date(now).toISOString() })
+        : null,
+      device_mismatch: !same,
+    };
+  }
+  const licenseRegister = (b, now) => {
+    registerDevice(b, now);
+    return signedLicense(bindDevice(b.p_install_id, b.p_device_key), b.p_device_key, now);
+  };
+  const licenseCheck = (b, now) => {
+    getLicense(b, now);
+    return signedLicense(bindDevice(b.p_install_id, b.p_device_key), b.p_device_key, now);
+  };
+  const licenseRedeem = (b, now) => {
+    const a = bindDevice(b.p_install_id, b.p_device_key);
+    if (a.device_key !== b.p_device_key) return signedLicense(a, b.p_device_key, now);
+    const tries = (store.data.redeem_attempts ??= []).filter((t) => t.install_id === a.install_id && now - t.at < 3600_000);
+    if (tries.length >= 10) return { error: "too many attempts, try again in an hour" };
+    const code = store.code(String(b.p_code || "").trim().toUpperCase());
+    if (!code || code.redeemed_by) {
+      store.data.redeem_attempts.push({ install_id: a.install_id, at: now });
+      store.save();
+      return { error: "invalid or used code" };
+    }
+    redeemCode({ p_install_id: a.install_id, p_code: code.code }, now);
+    return signedLicense(store.account(a.install_id), b.p_device_key, now);
+  };
+
   // Admin-managed ready-made lists (Supabase table `preset_lists`, enabled rows, by sort order).
   const getPresets = () =>
     Object.values(store.data.presets ?? {})
@@ -130,7 +198,11 @@ export function createApp({ store, apiKey = null, clock = Date.now, log = () => 
     store.save();
     return { ok: true };
   };
-  const RPC = { register_device: registerDevice, get_license: getLicense, redeem_code: redeemCode, get_presets: getPresets, submit_purchase_request: submitPurchase };
+  const RPC = {
+    license_register: licenseRegister, license_check: licenseCheck, license_redeem: licenseRedeem,
+    register_device: registerDevice, get_license: getLicense, // older app versions
+    get_presets: getPresets, submit_purchase_request: submitPurchase,
+  };
 
   async function handle(req, res) {
     try {

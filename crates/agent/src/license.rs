@@ -3,10 +3,12 @@
 //! cached locally so the app keeps working offline, but premium is only trusted
 //! for a bounded time without a successful recheck, to resist offline abuse.
 //!
-//! Security note: the trial is anchored server-side to a persistent `install_id`,
-//! so clearing local data does not reset it once the device has been seen online.
-//! The `install_id` is a per-install secret; it is the bearer credential for the
-//! account. See NOTES.md for the known limits and the planned payment wiring.
+//! Security: the plan is trusted ONLY from a license token signed by the
+//! server (Ed25519, key kept in Supabase Vault; public half below). The token
+//! names this Device ID and this computer's device fingerprint
+//! (`devicekey.rs`), so an edited license.json, a fake server, or a license
+//! copied from another PC gives no trial and no Premium. The other fields in
+//! license.json are only for display.
 
 use std::time::Duration as StdDuration;
 
@@ -17,6 +19,16 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_TRIAL_DAYS: i64 = 4;
 /// How long a cached "premium" is trusted with no successful server recheck.
 pub const OFFLINE_GRACE_DAYS: i64 = 14;
+/// Before this install has ever received a signed license (first start with
+/// no internet yet), setup is allowed for this long after the service starts.
+pub const PROVISIONAL_MINUTES: i64 = 15;
+
+/// Public half of the license-signing key (hex, 32 bytes Ed25519). The private
+/// half never leaves the Supabase project (Vault secret `license_signing_seed`).
+pub const LICENSE_PUBLIC_KEY_HEX: &str =
+    "dbac7c21b268ba3d0fe41fe091d57d6fe8761c915dabdddaaf7d32ea2ec6e8b8";
+/// Domain-separation prefix of the signed message (must match the SQL).
+const TOKEN_PREFIX: &str = "htl-content-guard-license-v1\n";
 
 /// Built-in backend used when the user has not configured one. The publishable
 /// (anon) key is designed to be shipped in clients; real authority is enforced
@@ -58,6 +70,84 @@ pub struct License {
     pub pay: Option<serde_json::Value>,
     /// A purchase request sent from the app that the admin hasn't approved yet.
     pub pending_purchase: Option<serde_json::Value>,
+    /// Last license token signed by the server (`<payload hex>.<signature hex>`).
+    pub token: String,
+    /// The server says this Device ID belongs to another computer.
+    pub device_mismatch: bool,
+    /// This computer's device fingerprint (set at start, never from the file).
+    #[serde(skip)]
+    pub device_key: String,
+    /// Setup allowed until then while no signed license was ever received.
+    #[serde(skip)]
+    pub provisional_until: Option<DateTime<Utc>>,
+}
+
+/// What a valid token says (all signed by the server).
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct Claims {
+    pub v: u32,
+    pub id: String,
+    pub dk: Option<String>,
+    pub plan: String,
+    pub trial_started: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub trial_days: i64,
+    pub premium_until: Option<DateTime<Utc>>,
+    pub iat: DateTime<Utc>,
+}
+
+fn unhex(s: &str) -> Option<Vec<u8>> {
+    if !s.len().is_multiple_of(2) || s.is_empty() {
+        return None;
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok())
+        .collect()
+}
+
+/// The key tokens are checked against. Debug builds (development only) may
+/// use the local mock server's key; release builds only ever trust the real one.
+fn public_key_hex() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(k) = std::env::var("CONTENTGUARD_LICENSE_PUBKEY") {
+        if !k.trim().is_empty() {
+            return k.trim().to_string();
+        }
+    }
+    LICENSE_PUBLIC_KEY_HEX.to_string()
+}
+
+/// Checks the server's signature and returns the claims, or `None`.
+pub fn verify_token(token: &str, public_key_hex: &str) -> Option<Claims> {
+    let (payload_hex, sig_hex) = token.trim().split_once('.')?;
+    let payload = unhex(payload_hex)?;
+    let sig = unhex(sig_hex)?;
+    let key = unhex(public_key_hex)?;
+    if key.len() != 32 || sig.len() != 64 || payload.len() > 4096 {
+        return None;
+    }
+    let mut msg = TOKEN_PREFIX.as_bytes().to_vec();
+    msg.extend_from_slice(&payload);
+    if !signature_valid(&key, &msg, &sig) {
+        return None;
+    }
+    let c: Claims = serde_json::from_slice(&payload).ok()?;
+    (c.v == 1).then_some(c)
+}
+
+#[cfg(feature = "tls")]
+fn signature_valid(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
+    use ring::signature::{UnparsedPublicKey, ED25519};
+    UnparsedPublicKey::new(&ED25519, key)
+        .verify(msg, sig)
+        .is_ok()
+}
+
+/// Builds without the crypto library (cross-checks only) trust no license.
+#[cfg(not(feature = "tls"))]
+fn signature_valid(_key: &[u8], _msg: &[u8], _sig: &[u8]) -> bool {
+    false
 }
 
 impl Default for License {
@@ -79,6 +169,10 @@ impl Default for License {
             purchase_url: String::new(),
             pay: None,
             pending_purchase: None,
+            token: String::new(),
+            device_mismatch: false,
+            device_key: String::new(),
+            provisional_until: None,
         }
     }
 }
@@ -108,46 +202,45 @@ impl License {
         }
     }
 
-    fn trial_active(&self, now: DateTime<Utc>) -> Option<i64> {
-        let started = self.trial_started?;
-        let end = started + Duration::days(self.trial_days.max(0));
-        if now < end {
-            // Days remaining, rounded up (a part-day still counts as a day).
-            Some(
-                (end - now)
-                    .num_seconds()
-                    .saturating_add(86_399)
-                    .div_euclid(86_400),
-            )
-        } else {
-            None
+    /// The signed claims, if the token is genuine AND made for this Device ID
+    /// on this very computer.
+    pub fn claims(&self) -> Option<Claims> {
+        if self.device_key.is_empty() {
+            return None;
         }
-    }
-
-    /// Premium by plan and (for subscriptions) still within the paid period —
-    /// before applying the offline-freshness requirement.
-    fn premium_paid(&self, now: DateTime<Utc>) -> bool {
-        self.plan == "premium" && self.premium_until.map(|u| now < u).unwrap_or(true)
+        let c = verify_token(&self.token, &public_key_hex())?;
+        (c.id == self.install_id && c.dk.as_deref() == Some(self.device_key.as_str())).then_some(c)
     }
 
     pub fn status(&self, now: DateTime<Utc>) -> Status {
-        if self.premium_paid(now) {
-            // Local state can be forged, so even lifetime premium must be
-            // re-confirmed with the backend within the offline grace window.
-            let fresh = self
-                .last_checked
-                .map(|t| now - t < Duration::days(OFFLINE_GRACE_DAYS))
-                .unwrap_or(false);
-            if fresh {
+        let Some(c) = self.claims() else {
+            // Never verified yet: a short setup window right after start,
+            // then nothing until the server has signed a license.
+            if !self.device_mismatch && self.provisional_until.is_some_and(|t| now < t) {
+                return Status::Trial {
+                    days_left: self.trial_days.max(1),
+                };
+            }
+            return if self.device_mismatch {
+                Status::Expired
+            } else {
+                Status::LockedOffline
+            };
+        };
+        let trial = trial_left(c.trial_started, c.trial_days, now);
+        let paid = c.plan == "premium" && c.premium_until.is_none_or(|u| now < u);
+        if paid {
+            // Even lifetime premium must be re-confirmed by the server within
+            // the offline grace window (the token's signed issue time).
+            if now - c.iat < Duration::days(OFFLINE_GRACE_DAYS) {
                 return Status::Premium;
             }
-            // Stale premium: fall back to the trial if any remains, else lock.
-            return match self.trial_active(now) {
+            return match trial {
                 Some(days_left) => Status::Trial { days_left },
                 None => Status::LockedOffline,
             };
         }
-        match self.trial_active(now) {
+        match trial {
             Some(days_left) => Status::Trial { days_left },
             None => Status::Expired,
         }
@@ -157,6 +250,17 @@ impl License {
     pub fn allows_management(&self, now: DateTime<Utc>) -> bool {
         matches!(self.status(now), Status::Trial { .. } | Status::Premium)
     }
+}
+
+/// Days left of a trial, rounded up (a part-day still counts as a day).
+fn trial_left(started: Option<DateTime<Utc>>, days: i64, now: DateTime<Utc>) -> Option<i64> {
+    let end = started? + Duration::days(days.max(0));
+    (now < end).then(|| {
+        (end - now)
+            .num_seconds()
+            .saturating_add(86_399)
+            .div_euclid(86_400)
+    })
 }
 
 // ---------- backend exchange ----------
@@ -175,6 +279,11 @@ struct ServerLicense {
     accepts_health: Option<bool>,
     purchase_url: Option<String>,
     pay: Option<serde_json::Value>,
+    /// Signed license token (servers since 2026-10-30).
+    token: Option<String>,
+    device_mismatch: Option<bool>,
+    /// A refused request that isn't an HTTP error (e.g. a wrong code).
+    error: Option<String>,
 }
 
 pub struct Endpoint {
@@ -238,9 +347,14 @@ fn call(ep: &Endpoint, func: &str, body: serde_json::Value) -> Result<ServerLice
             msg
         });
     }
-    resp.body_mut()
+    let s = resp
+        .body_mut()
         .read_json::<ServerLicense>()
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    match s.error {
+        Some(e) => Err(format!("{REJECTED}{e}")),
+        None => Ok(s),
+    }
 }
 
 /// The real time, from the `Date` header of the licensing server's HTTPS
@@ -289,6 +403,15 @@ fn apply(lic: &mut License, s: ServerLicense, now: DateTime<Utc>) {
         .purchase_url
         .filter(|u| u.starts_with("https://") && u.len() < 300 && !u.contains(char::is_whitespace))
         .unwrap_or_default();
+    lic.token = s.token.unwrap_or_default();
+    lic.device_mismatch = s.device_mismatch.unwrap_or(false);
+    // Show what the signature vouches for, not what an unsigned answer said.
+    if let Some(c) = lic.claims() {
+        lic.plan = c.plan;
+        lic.trial_started = c.trial_started;
+        lic.trial_days = c.trial_days;
+        lic.premium_until = c.premium_until;
+    }
     lic.last_checked = Some(now);
     lic.last_error.clear();
 }
@@ -314,11 +437,11 @@ pub fn register(
     lic.ensure_install_id();
     let body = serde_json::json!({
         "p_install_id": lic.install_id,
+        "p_device_key": lic.device_key,
         "p_os": os_name(),
         "p_version": version,
-        "p_trial_days": DEFAULT_TRIAL_DAYS,
     });
-    match call(ep, "register_device", body) {
+    match call(ep, "license_register", body) {
         Ok(s) => {
             apply(lic, s, now);
             Ok(())
@@ -339,13 +462,13 @@ pub fn refresh(
     health: serde_json::Value,
 ) -> Result<(), String> {
     lic.ensure_install_id();
-    // Older servers only know `p_install_id`; extra fields would be rejected.
-    let body = if lic.server_accepts_health {
-        serde_json::json!({ "p_install_id": lic.install_id, "p_version": version, "p_health": health })
-    } else {
-        serde_json::json!({ "p_install_id": lic.install_id })
-    };
-    match call(ep, "get_license", body) {
+    let body = serde_json::json!({
+        "p_install_id": lic.install_id,
+        "p_device_key": lic.device_key,
+        "p_version": version,
+        "p_health": health,
+    });
+    match call(ep, "license_check", body) {
         Ok(s) => {
             apply(lic, s, now);
             Ok(())
@@ -421,8 +544,12 @@ pub fn redeem(
     now: DateTime<Utc>,
 ) -> Result<(), String> {
     lic.ensure_install_id();
-    let body = serde_json::json!({ "p_install_id": lic.install_id, "p_code": code.trim() });
-    match call(ep, "redeem_code", body) {
+    let body = serde_json::json!({
+        "p_install_id": lic.install_id,
+        "p_device_key": lic.device_key,
+        "p_code": code.trim(),
+    });
+    match call(ep, "license_redeem", body) {
         Ok(s) => {
             apply(lic, s, now);
             Ok(())
@@ -438,57 +565,177 @@ pub fn redeem(
 mod tests {
     use super::*;
 
-    fn at(days_from_now: i64, base: DateTime<Utc>) -> DateTime<Utc> {
-        base + Duration::days(days_from_now)
+    const ID: &str = "cg1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const DK: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+
+    #[cfg_attr(not(feature = "tls"), allow(dead_code))]
+    fn hex(b: &[u8]) -> String {
+        b.iter().map(|x| format!("{x:02x}")).collect()
+    }
+
+    /// The test signing key (same for every test, so the env var never races).
+    #[cfg(feature = "tls")]
+    fn test_key() -> ring::signature::Ed25519KeyPair {
+        use ring::signature::KeyPair;
+        let k = ring::signature::Ed25519KeyPair::from_seed_unchecked(&[7u8; 32]).unwrap();
+        std::env::set_var("CONTENTGUARD_LICENSE_PUBKEY", hex(k.public_key().as_ref()));
+        k
+    }
+
+    /// A token as the server would sign it.
+    #[cfg(feature = "tls")]
+    fn token(claims: serde_json::Value) -> String {
+        let payload = claims.to_string();
+        let mut msg = TOKEN_PREFIX.as_bytes().to_vec();
+        msg.extend_from_slice(payload.as_bytes());
+        let sig = test_key().sign(&msg);
+        format!("{}.{}", hex(payload.as_bytes()), hex(sig.as_ref()))
+    }
+
+    #[cfg_attr(not(feature = "tls"), allow(dead_code))]
+    fn claims(
+        plan: &str,
+        started: DateTime<Utc>,
+        until: Option<DateTime<Utc>>,
+        iat: DateTime<Utc>,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "v": 1, "id": ID, "dk": DK, "plan": plan,
+            "trial_started": started, "trial_days": 4,
+            "premium_until": until, "iat": iat,
+        })
+    }
+
+    fn lic(token: String) -> License {
+        License {
+            install_id: ID.into(),
+            device_key: DK.into(),
+            token,
+            ..Default::default()
+        }
+    }
+
+    #[cfg(feature = "tls")]
+    #[test]
+    fn signed_trial_counts_down_then_expires() {
+        let now = Utc::now();
+        let l = lic(token(claims("trial", now, None, now)));
+        assert_eq!(l.status(now), Status::Trial { days_left: 4 });
+        assert!(l.allows_management(now));
+        assert_eq!(
+            l.status(now + Duration::days(3)),
+            Status::Trial { days_left: 1 }
+        );
+        assert_eq!(l.status(now + Duration::days(4)), Status::Expired);
+        assert!(!l.allows_management(now + Duration::days(5)));
+    }
+
+    #[cfg(feature = "tls")]
+    #[test]
+    fn signed_premium_needs_a_recent_check() {
+        let now = Utc::now();
+        let old = now - Duration::days(30);
+        let l = lic(token(claims("premium", old, None, now)));
+        assert_eq!(l.status(now), Status::Premium);
+        // Lifetime premium, but not confirmed by the server for too long.
+        assert_eq!(
+            l.status(now + Duration::days(OFFLINE_GRACE_DAYS + 1)),
+            Status::LockedOffline
+        );
+        // A subscription ends at its signed end date.
+        let l = lic(token(claims(
+            "premium",
+            old,
+            Some(now + Duration::days(10)),
+            now,
+        )));
+        assert_eq!(l.status(now + Duration::days(9)), Status::Premium);
+        assert_eq!(l.status(now + Duration::days(11)), Status::Expired);
+    }
+
+    #[cfg(feature = "tls")]
+    #[test]
+    fn edited_files_and_fake_servers_give_nothing() {
+        let now = Utc::now();
+        let old = now - Duration::days(30);
+        let good = token(claims("trial", old, None, now)); // an expired trial
+                                                           // Editing the readable fields of license.json changes nothing.
+        let mut l = lic(good.clone());
+        l.plan = "premium".into();
+        l.premium_until = None;
+        l.last_checked = Some(now);
+        l.trial_started = Some(now);
+        assert_eq!(l.status(now), Status::Expired);
+        // Changing the signed payload breaks the signature.
+        let (p, s) = good.split_once('.').unwrap();
+        let forged_payload = hex(claims("premium", old, None, now).to_string().as_bytes());
+        assert_eq!(
+            lic(format!("{forged_payload}.{s}")).status(now),
+            Status::LockedOffline
+        );
+        assert!(verify_token(&format!("{p}x.{s}"), &public_key_hex()).is_none());
+        // A token signed with another key (a self-made server) is ignored.
+        let other = ring::signature::Ed25519KeyPair::from_seed_unchecked(&[9u8; 32]).unwrap();
+        let payload = claims("premium", old, None, now).to_string();
+        let mut msg = TOKEN_PREFIX.as_bytes().to_vec();
+        msg.extend_from_slice(payload.as_bytes());
+        let fake = format!(
+            "{}.{}",
+            hex(payload.as_bytes()),
+            hex(other.sign(&msg).as_ref())
+        );
+        test_key();
+        assert_eq!(lic(fake).status(now), Status::LockedOffline);
+    }
+
+    #[cfg(feature = "tls")]
+    #[test]
+    fn a_license_copied_to_another_pc_is_ignored() {
+        let now = Utc::now();
+        let t = token(claims("premium", now, None, now));
+        // Same file, different computer (different device secret).
+        let mut copied = lic(t.clone());
+        copied.device_key = "2".repeat(64);
+        assert_eq!(copied.status(now), Status::LockedOffline);
+        // Same token, different Device ID.
+        let mut other_id = lic(t);
+        other_id.install_id = "cg1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into();
+        assert_eq!(other_id.status(now), Status::LockedOffline);
+        // No device secret at all.
+        let mut none = lic(token(claims("premium", now, None, now)));
+        none.device_key.clear();
+        assert!(none.claims().is_none());
     }
 
     #[test]
-    fn trial_countdown_then_expiry() {
+    fn short_setup_window_before_the_first_signed_license() {
         let now = Utc::now();
-        let mut lic = License {
-            trial_started: Some(now),
-            trial_days: 4,
-            ..Default::default()
-        };
-        assert_eq!(lic.status(now), Status::Trial { days_left: 4 });
-        assert!(lic.allows_management(now));
-        assert_eq!(lic.status(at(3, now)), Status::Trial { days_left: 1 });
-        assert_eq!(lic.status(at(4, now)), Status::Expired);
-        assert!(!lic.allows_management(at(5, now)));
-        lic.install_id.clear();
-        lic.ensure_install_id();
-        assert!(!lic.install_id.is_empty());
+        let mut l = lic(String::new());
+        l.provisional_until = Some(now + Duration::minutes(PROVISIONAL_MINUTES));
+        assert!(matches!(l.status(now), Status::Trial { .. }));
+        assert_eq!(
+            l.status(now + Duration::minutes(PROVISIONAL_MINUTES + 1)),
+            Status::LockedOffline
+        );
+        // Never for a Device ID the server says belongs to another computer.
+        l.device_mismatch = true;
+        assert_eq!(l.status(now), Status::Expired);
     }
 
     #[test]
-    fn premium_perpetual_and_timed() {
-        let now = Utc::now();
-        let mut lic = License {
-            plan: "premium".into(),
-            premium_until: None,
-            last_checked: Some(now),
-            ..Default::default()
-        };
-        assert_eq!(lic.status(now), Status::Premium);
-        // Even lifetime premium must re-confirm within the offline grace window.
-        assert_eq!(lic.status(at(400, now)), Status::LockedOffline);
-
-        lic.premium_until = Some(at(30, now));
-        assert_eq!(lic.status(now), Status::Premium);
-        assert_eq!(lic.status(at(31, now)), Status::Expired);
-    }
-
-    #[test]
-    fn offline_grace_locks_subscription() {
-        let now = Utc::now();
-        // Subscription with no end date but checked long ago, and no trial left.
-        let lic = License {
-            plan: "premium".into(),
-            premium_until: None,
-            last_checked: Some(now - Duration::days(OFFLINE_GRACE_DAYS + 1)),
-            ..Default::default()
-        };
-        assert_eq!(lic.status(now), Status::LockedOffline);
-        assert!(!lic.allows_management(now));
+    fn malformed_tokens_are_rejected() {
+        let key = "ab".repeat(32);
+        for t in [
+            "",
+            ".",
+            "zz.zz",
+            "abcd",
+            "ab.cd",
+            &format!("{}.{}", "7b7d", "00".repeat(64)),
+        ] {
+            assert!(verify_token(t, &key).is_none(), "{t}");
+        }
+        assert!(unhex("abc").is_none());
+        assert_eq!(unhex("0aff"), Some(vec![10, 255]));
     }
 }

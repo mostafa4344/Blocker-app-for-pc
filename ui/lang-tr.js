@@ -229,6 +229,7 @@ export default {
   err_duplicate: "Benzer bir talep zaten var.",
   err_invalid_code: "Bu kod geçersiz veya daha önce kullanılmış. Yazımını kontrol edip tekrar deneyin.",
   err_license_offline: "Lisans sunucusuna ulaşılamıyor. İnternet bağlantınızı kontrol edip tekrar deneyin.",
+  err_license_device: "Bu Cihaz Kimliği başka bir bilgisayara bağlı, bu yüzden Premium burada açılamıyor. Windows'u veya uygulamayı yeniden kurduysanız aşağıdaki Cihaz Kimliğini desteğe gönderin, lisansınızı bu bilgisayara taşıyalım.",
   err_payment_required: "Engel eklemek veya sıkılaştırmak Premium gerektirir.",
   confirm_delete: "Gerçekten silinsin mi?",
   ob_welcome: "Hoş geldiniz! Bir dakikada kuralım",

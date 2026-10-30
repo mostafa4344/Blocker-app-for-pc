@@ -12,6 +12,7 @@ mod api;
 mod app;
 mod apps;
 mod browserpolicy;
+mod devicekey;
 mod dns;
 mod enforce;
 mod fingerprint;
@@ -47,6 +48,9 @@ fn open_app() -> std::io::Result<Arc<App>> {
 
 /// Starts the API, enforcement and sync threads; returns when `stop` is set.
 pub fn run_until(stop: Arc<AtomicBool>) -> std::io::Result<()> {
+    // Before anything is read: only SYSTEM/Administrators may write the data.
+    let _ = std::fs::create_dir_all(paths::data_dir());
+    devicekey::protect_data_dir(&paths::data_dir());
     let app = open_app()?;
     let port = paths::listen_port();
     api::serve(app.clone(), port, 4)?;
