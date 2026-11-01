@@ -294,7 +294,7 @@ export const HELP = {
     extension: {
       t: "Browser extension",
       p: ["The HTL Content Guard PC extension filters inside the browser: partial blocking (Shorts, Reels, feeds), word blocking, the block page and SafeSearch.",
-        "It installs itself in Chrome, Edge and Brave when browser protection is on. You can also add it yourself from the Chrome Web Store by searching \"HTL Content Guard PC\"."],
+        "It installs itself in Chrome, Brave and Vivaldi when browser protection is on. You can also add it yourself from the Chrome Web Store by searching \"HTL Content Guard PC\"."],
     },
   },
 
@@ -586,7 +586,7 @@ export const HELP = {
     extension: {
       t: "ব্রাউজার এক্সটেনশন",
       p: ["HTL Content Guard PC এক্সটেনশন ব্রাউজারের ভেতরে ফিল্টার করে: আংশিক ব্লক (Shorts, Reels, ফিড), শব্দ ব্লক, ব্লক পাতা আর SafeSearch।",
-        "ব্রাউজার সুরক্ষা চালু থাকলে Chrome, Edge আর Brave-এ এটা নিজে বসে যায়। চাইলে Chrome Web Store-এ \"HTL Content Guard PC\" খুঁজে নিজেও যোগ করতে পারেন।"],
+        "ব্রাউজার সুরক্ষা চালু থাকলে Chrome, Brave আর Vivaldi-এ এটা নিজে বসে যায়। চাইলে Chrome Web Store-এ \"HTL Content Guard PC\" খুঁজে নিজেও যোগ করতে পারেন।"],
     },
   },
 };

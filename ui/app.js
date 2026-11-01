@@ -2,7 +2,7 @@
 import { S, $, $$, t, presetName, addPreset, num, esc, languageOptions, getLanguage, api, cfg, clone, refresh, openModal, closeModal, modalOpen, updateCountdowns, toast, errMsg } from "/core.js";
 import { renderHome } from "/home.js";
 import { renderLists, renderSchedules, renderLimits } from "/editors.js";
-import { renderProtection, renderSettings, renderLicense } from "/protection.js";
+import { renderProtection, renderSettings, renderLicense, delayLabel } from "/protection.js";
 import { initTips } from "/help.js";
 
 initTips();
@@ -134,7 +134,7 @@ function showStep() {
       <div class="preset-grid">${S.status.presets.map((p) => `<button class="preset" data-p="${esc(p.id)}" aria-pressed="${ob.presets.has(p.id)}"><span class="icon">${p.icon}</span><strong>${esc(presetName(p))}</strong></button>`).join("")}</div>`;
   } else {
     body = `<h2>${t("ob_protection_q")}</h2>
-      <div class="level-cards">${["off", "mindful", "committed"].map((lv) => `<button class="preset" data-lv="${lv}" aria-pressed="${ob.level === lv}"><strong>${t(`level_${lv}`)}${lv === "mindful" ? ` <span class="badge ok">${t("recommended")}</span>` : ""}</strong><small>${t(`level_${lv}_desc`, { hours: num(24), days: num(7) })}</small></button>`).join("")}</div>
+      <div class="level-cards">${["off", "mindful", "committed"].map((lv) => `<button class="preset" data-lv="${lv}" aria-pressed="${ob.level === lv}"><strong>${t(`level_${lv}`)}${lv === "mindful" ? ` <span class="badge ok">${t("recommended")}</span>` : ""}</strong><small>${t(`level_${lv}_desc`, { hours: delayLabel(24), days: num(7) })}</small></button>`).join("")}</div>
       <p class="hint">${t("practice_mode")}</p>`;
   }
   const back = ob.step > 0 ? `<button class="btn" id="ob-back">${t("ob_back")}</button>` : "";

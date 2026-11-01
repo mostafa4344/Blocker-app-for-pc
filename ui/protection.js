@@ -9,8 +9,9 @@ const FILTERS = ["youtube_shorts", "youtube_recommendations", "youtube_comments"
 const UNLIMITED_HOURS = 876000;
 const DELAY_OPTIONS = [24, 72, 168, 336, 720, 2160, 8760, UNLIMITED_HOURS];
 
-function delayLabel(hours) {
+export function delayLabel(hours) {
   if (hours >= UNLIMITED_HOURS) return t("delay_unlimited");
+  if (hours === 24) return t("delay_day", { n: num(1) });
   if (hours % 24 === 0) return t("delay_days", { n: num(hours / 24) });
   return t("delay_hours", { n: num(hours) });
 }
