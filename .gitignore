@@ -11,4 +11,4 @@ supabase/.temp/
 *.stackdump
 dist/website-upload/
 dist/website-upload.zip
-dist/video/
+dist/video/*.mp4

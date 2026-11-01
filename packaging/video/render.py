@@ -38,7 +38,9 @@ def ease_out(x):
 
 
 # ---------------------------------------------------------------- timeline
-META = [json.load(open(f"{D}/voice/s{i:02d}.json", encoding="utf-8")) for i in range(len(S))]
+LANG = os.environ.get("CG_LANG", "en")
+VOICE_DIR = f"{D}/voice_bn" if LANG == "bn" else f"{D}/voice"
+META = [json.load(open(f"{VOICE_DIR}/s{i:02d}.json", encoding="utf-8")) for i in range(len(S))]
 STARTS, t = [], 0.0
 for i, sc in enumerate(S):
     STARTS.append(t)
@@ -558,7 +560,7 @@ def build_audio(path):
     buf = np.zeros(int((TOTAL + 1) * sr), np.float32)
     clk = click_sound(sr)
     for i in range(len(S)):
-        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", f"{D}/voice/s{i:02d}.mp3", "-f", "f32le", "-ac", "1", "-ar", str(sr), "-"], capture_output=True).stdout
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", f"{VOICE_DIR}/s{i:02d}.mp3", "-f", "f32le", "-ac", "1", "-ar", str(sr), "-"], capture_output=True).stdout
         v = np.frombuffer(raw, np.float32)
         o = int((STARTS[i] + LEAD) * sr)
         buf[o:o + len(v)] += v
@@ -611,7 +613,7 @@ if __name__ == "__main__":
     elif cmd == "video":
         t0 = float(sys.argv[2]) if len(sys.argv) > 2 else 0
         t1 = float(sys.argv[3]) if len(sys.argv) > 3 else TOTAL
-        out = f"{D}/out"
+        out = f"{D}/out_bn" if LANG == "bn" else f"{D}/out"
         os.makedirs(out, exist_ok=True)
         silent = f"{out}/video_{int(t0)}_{int(t1)}.mp4"
         p = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",

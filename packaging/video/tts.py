@@ -5,10 +5,13 @@ import edge_tts
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(__file__))
 from script import S, SAY  # noqa: E402
+from script_bn import BN  # noqa: E402
 
-VOICE = "en-US-AndrewMultilingualNeural"
-RATE = "-3%"
-OUT = os.path.join(os.path.dirname(__file__), "voice")
+LANG = os.environ.get("CG_LANG", "en")
+
+VOICE = "bn-BD-PradeepNeural" if LANG == "bn" else "en-US-AndrewMultilingualNeural"
+RATE = "+0%" if LANG == "bn" else "-3%"
+OUT = os.path.join(os.path.dirname(__file__), "voice_bn" if LANG == "bn" else "voice")
 os.makedirs(OUT, exist_ok=True)
 MARK = re.compile(r"\[\[(\w+)(!?)\]\]")
 
@@ -21,7 +24,7 @@ def say(s):
 
 def plan(text):
     """Spoken text, marker char positions, sentence spans (start, end, display)."""
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+    sentences = re.split(r"(?<=[.!?।])\s+", text.strip())
     spoken, marks, spans = "", [], []
     for sent in sentences:
         if spoken:
@@ -78,8 +81,13 @@ async def main():
     only = set(sys.argv[1:])
     meta = []
     for i, sc in enumerate(S):
-        spoken, marks, spans = plan(sc["text"])
-        assert len(spans) == len(sc["bn"]), (i, len(spans), len(sc["bn"]), sc["text"][:60])
+        if LANG == "bn":
+            spoken, marks, spans = plan(" ".join(BN[i]))
+            en_lines = re.split(r"(?<=[.!?])\s+", MARK.sub("", sc["text"]).strip())
+            assert len(spans) == len(en_lines), (i, len(spans), len(en_lines))
+        else:
+            spoken, marks, spans = plan(sc["text"])
+            assert len(spans) == len(sc["bn"]), (i, len(spans), len(sc["bn"]), sc["text"][:60])
         mp3 = f"{OUT}/s{i:02d}.mp3"
         cache = f"{OUT}/s{i:02d}.json"
         old = json.load(open(cache, encoding="utf-8")) if os.path.exists(cache) else None
@@ -95,7 +103,10 @@ async def main():
                     await asyncio.sleep(3)
         al = align(spoken, words)
         m = [{"key": k, "click": c, "t": time_at(al, p)} for k, c, p in marks]
-        sents = [{"t0": time_at(al, a), "t1": time_at(al, b, end=True), "en": d, "bn": sc["bn"][j]} for j, (a, b, d) in enumerate(spans)]
+        if LANG == "bn":
+            sents = [{"t0": time_at(al, a), "t1": time_at(al, b, end=True), "bn": d, "en": en_lines[j]} for j, (a, b, d) in enumerate(spans)]
+        else:
+            sents = [{"t0": time_at(al, a), "t1": time_at(al, b, end=True), "en": d, "bn": sc["bn"][j]} for j, (a, b, d) in enumerate(spans)]
         info = {"spoken": spoken, "words": words, "marks": m, "sents": sents, "dur": duration(mp3)}
         json.dump(info, open(cache, "w", encoding="utf-8"), ensure_ascii=False)
         meta.append(info)

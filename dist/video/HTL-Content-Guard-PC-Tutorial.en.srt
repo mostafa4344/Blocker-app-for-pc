@@ -1,0 +1,395 @@
+1
+00:00:00,566 --> 00:00:08,973
+Welcome to HTL Content Guard PC, the content blocker that helps you stay focused and protected on your Windows computer.
+
+2
+00:00:11,030 --> 00:00:22,285
+In this video, I'll show you every step: how to download and install it, set it up in one minute, block websites, apps and keywords, and how the free trial and Premium work.
+
+3
+00:00:23,604 --> 00:00:27,797
+First, open our website and click Download free for Windows.
+
+4
+00:00:27,959 --> 00:00:32,771
+It's a single file of about two and a half megabytes, so there's nothing to unzip.
+
+5
+00:00:34,047 --> 00:00:37,493
+Every feature is free for four days.
+
+6
+00:00:37,655 --> 00:00:41,191
+You don't need a card, a payment, or even an account to start.
+
+7
+00:00:42,476 --> 00:00:43,989
+Open the downloaded file.
+
+8
+00:00:44,151 --> 00:00:50,213
+Because we're a new publisher, Windows may show a blue box called Windows protected your PC.
+
+9
+00:00:50,389 --> 00:00:52,198
+This is normal for new apps.
+
+10
+00:00:52,373 --> 00:00:53,358
+Click More info.
+
+11
+00:00:54,640 --> 00:00:56,192
+Then click Run anyway.
+
+12
+00:00:57,549 --> 00:01:01,639
+Windows now asks if this app may make changes to your device.
+
+13
+00:01:01,815 --> 00:01:02,696
+Click Yes.
+
+14
+00:01:02,846 --> 00:01:07,786
+The app needs this permission to block websites for every browser on your computer.
+
+15
+00:01:09,063 --> 00:01:10,756
+The setup window opens.
+
+16
+00:01:10,932 --> 00:01:11,865
+Click Next.
+
+17
+00:01:13,137 --> 00:01:16,055
+Keep the suggested folder, and click Install.
+
+18
+00:01:17,331 --> 00:01:19,991
+Installation takes just a few seconds.
+
+19
+00:01:21,248 --> 00:01:26,124
+Leave Open HTL Content Guard PC now ticked, and click Finish.
+
+20
+00:01:26,287 --> 00:01:28,740
+You can always open the app again from the Start menu.
+
+21
+00:01:30,015 --> 00:01:32,211
+The app opens with a one-minute setup.
+
+22
+00:01:32,373 --> 00:01:33,577
+Choose your language.
+
+23
+00:01:33,752 --> 00:01:39,982
+The app speaks English, Bengali, Arabic, Urdu, Indonesian and Turkish.
+
+24
+00:01:41,278 --> 00:01:42,378
+Then write your goal.
+
+25
+00:01:42,541 --> 00:01:45,329
+It's shown on the block page to remind you why you started.
+
+26
+00:01:45,492 --> 00:01:46,464
+Click Next.
+
+27
+00:01:47,726 --> 00:01:49,200
+Now pick what you want to block.
+
+28
+00:01:49,363 --> 00:01:52,989
+Adult content and gambling are blocked around the clock.
+
+29
+00:01:53,164 --> 00:01:57,190
+Short videos, like Shorts and Reels, are selected too.
+
+30
+00:01:58,485 --> 00:02:01,145
+Tap any other list you want, like Social media.
+
+31
+00:02:01,307 --> 00:02:03,310
+You can change all of this later.
+
+32
+00:02:03,472 --> 00:02:04,367
+Click Next.
+
+33
+00:02:05,720 --> 00:02:08,843
+Finally, choose how strict to be with yourself.
+
+34
+00:02:09,019 --> 00:02:11,498
+Off lets you change anything at any time.
+
+35
+00:02:11,660 --> 00:02:18,470
+Mindful, which we recommend, asks you to type a long text and wait one minute before you can lower protection.
+
+36
+00:02:18,645 --> 00:02:22,039
+Committed makes you wait a full day, or longer if you choose.
+
+37
+00:02:23,352 --> 00:02:31,050
+For your first seven days, practice mode keeps every lock to two hours at most, so you can't trap yourself by mistake.
+
+38
+00:02:31,213 --> 00:02:32,262
+Click Finish.
+
+39
+00:02:33,531 --> 00:02:34,168
+That's it.
+
+40
+00:02:34,343 --> 00:02:39,425
+Your protection is already on, and the home screen shows what's being blocked right now.
+
+41
+00:02:40,725 --> 00:02:43,849
+Websites are already blocked in every browser.
+
+42
+00:02:44,011 --> 00:02:52,869
+The free browser extension adds even more: it hides Shorts and Reels, blocks pages by keyword, and shows a friendly block page.
+
+43
+00:02:53,032 --> 00:03:01,220
+Setup has already turned on Install the extension permanently, so the extension adds itself to Chrome, Brave and Vivaldi.
+
+44
+00:03:02,498 --> 00:03:09,578
+In Microsoft Edge, open the Chrome Web Store, search for HTL Content Guard PC, and click Add to Chrome.
+
+45
+00:03:09,753 --> 00:03:13,251
+If Edge asks, allow extensions from other stores.
+
+46
+00:03:14,566 --> 00:03:19,223
+When the extension is connected, the yellow warning on the home screen disappears.
+
+47
+00:03:20,499 --> 00:03:21,754
+Open Block lists.
+
+48
+00:03:21,917 --> 00:03:25,672
+A list holds the websites, apps and words you want to block.
+
+49
+00:03:25,847 --> 00:03:29,654
+Use Add a ready-made list for categories we keep up to date for you.
+
+50
+00:03:30,957 --> 00:03:39,931
+Social media, video streaming, games, chat apps, news, shopping, dating apps, and even AI homework helpers.
+
+51
+00:03:41,223 --> 00:03:43,367
+Or click New list to make your own.
+
+52
+00:03:43,543 --> 00:03:49,514
+Give it a name, then add websites, one per line, programs, like a game, and words.
+
+53
+00:03:49,664 --> 00:03:53,896
+Any page whose address contains one of these words is blocked.
+
+54
+00:03:54,058 --> 00:03:54,978
+Click Save.
+
+55
+00:03:56,252 --> 00:03:59,621
+Lists marked Always on are blocked twenty-four seven.
+
+56
+00:03:59,796 --> 00:04:05,471
+The others are blocked when you start a focus session, or by a schedule or a daily limit.
+
+57
+00:04:06,747 --> 00:04:08,479
+To focus right now, go to Home.
+
+58
+00:04:08,654 --> 00:04:13,415
+Pick the lists to block, choose how long, and how the session can be stopped.
+
+59
+00:04:13,590 --> 00:04:16,198
+The summary tells you exactly what will happen.
+
+60
+00:04:16,373 --> 00:04:17,203
+Click Start.
+
+61
+00:04:18,490 --> 00:04:22,400
+Blocking now shows each list and exactly when it ends.
+
+62
+00:04:23,679 --> 00:04:29,432
+If you open a blocked site, you'll see this page instead, with your goal, to keep you on track.
+
+63
+00:04:30,729 --> 00:04:35,361
+Schedules block a list automatically on the days and hours you choose.
+
+64
+00:04:35,536 --> 00:04:41,482
+Start from a quick template, like Work hours, pick the days, and set the start and end time.
+
+65
+00:04:41,657 --> 00:04:42,538
+Click Save.
+
+66
+00:04:43,827 --> 00:04:45,778
+Your week is shown at a glance.
+
+67
+00:04:47,061 --> 00:04:50,314
+Daily limits give you a set amount of time each day.
+
+68
+00:04:50,528 --> 00:04:53,664
+For example, thirty minutes of short videos.
+
+69
+00:04:53,839 --> 00:04:57,363
+When the time is used up, it's blocked until tomorrow.
+
+70
+00:04:57,538 --> 00:04:58,432
+Click Save.
+
+71
+00:04:59,690 --> 00:05:08,188
+In Settings, Force SafeSearch keeps Google, Bing, YouTube and DuckDuckGo in safe mode in every browser.
+
+72
+00:05:08,350 --> 00:05:12,840
+You can also turn off private windows, the most common way around a filter.
+
+73
+00:05:14,121 --> 00:05:18,765
+With Partial blocking, a site stays useful without the endless scroll.
+
+74
+00:05:18,941 --> 00:05:26,033
+Hide YouTube Shorts, the home feed, or comments, the Facebook feed and Reels, Instagram Reels, and more.
+
+75
+00:05:26,209 --> 00:05:27,644
+Remember to click Save.
+
+76
+00:05:28,936 --> 00:05:34,405
+The Protection page stops you from deleting the app or loosening blocks in a weak moment.
+
+77
+00:05:34,580 --> 00:05:35,977
+You can switch levels here.
+
+78
+00:05:36,140 --> 00:05:38,529
+Making things stricter works at once.
+
+79
+00:05:38,678 --> 00:05:42,150
+Making them easier always needs the waiting time you chose.
+
+80
+00:05:43,437 --> 00:05:46,355
+To uninstall, click Request uninstall.
+
+81
+00:05:46,517 --> 00:05:51,071
+When your level's rule is met, Windows lets you remove the app as usual.
+
+82
+00:05:51,234 --> 00:05:55,659
+Every level keeps a safe way out, so nobody is ever locked in.
+
+83
+00:05:56,943 --> 00:06:00,544
+The top of the app shows how many days of your free trial are left.
+
+84
+00:06:00,706 --> 00:06:04,358
+When the trial ends, every block you set keeps working.
+
+85
+00:06:04,520 --> 00:06:08,108
+You only need Premium to add new blocks or make them stronger.
+
+86
+00:06:09,393 --> 00:06:12,800
+To buy, open the Premium page and choose a plan.
+
+87
+00:06:14,067 --> 00:06:15,992
+Choose bKash or Nagad.
+
+88
+00:06:16,168 --> 00:06:20,412
+In your payment app, use Send Money to send the amount shown to this number.
+
+89
+00:06:20,575 --> 00:06:22,513
+You can copy it with one click.
+
+90
+00:06:23,792 --> 00:06:28,063
+After paying, you'll get a TrxID in the payment message.
+
+91
+00:06:28,238 --> 00:06:31,916
+Type it here, add your mobile number if you like, and click Submit.
+
+92
+00:06:33,194 --> 00:06:38,599
+Once we confirm your payment, usually within a few hours, Premium turns on by itself.
+
+93
+00:06:38,761 --> 00:06:40,016
+There's nothing else to do.
+
+94
+00:06:40,192 --> 00:06:43,689
+And every purchase has a fourteen-day money-back guarantee.
+
+95
+00:06:44,972 --> 00:06:45,686
+Need help?
+
+96
+00:06:45,836 --> 00:06:51,305
+Copy your Device ID from the bottom of the Premium page and send it to us on WhatsApp or by email.
+
+97
+00:06:51,467 --> 00:06:52,555
+We're happy to help.
+
+98
+00:06:53,848 --> 00:06:54,884
+Thank you for watching.
+
+99
+00:06:55,046 --> 00:06:57,448
+Stay focused, and stay protected.
